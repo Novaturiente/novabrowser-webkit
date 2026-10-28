@@ -5,8 +5,9 @@ qutebrowser-style browser (modes, hints, palette, config.ts, password-manager
 integration, adblock, userscripts), on **WebKitGTK 6.0 + GTK 4** instead of
 CEF/Chromium.
 
-Status: **planning only, no code yet.** Written 2026-10-28 (IST) from
-novabrowser 0.1.8 (commit `9574fca`).
+Status: **planned, spikes running.** Plan from novabrowser 0.1.8 (`9574fca`).
+Speedometer 3.1 with our PGO WebKitGTK build (`webkitgtk-6.0-nova`): 27.25 vs
+26.3 for the CEF edition (2026-10-28). Full feature checklist: `PROGRESS.md`.
 
 ## Why a WebKit edition
 

@@ -1,8 +1,10 @@
 # Porting plan
 
 How each part of the CEF edition (`../novabrowser`, 0.1.8, `9574fca`) moves
-over. "Copy" files keep a header line `// from novabrowser <commit> src/<file>`
-so later fixes can be carried across (decision D5 in PLAN.md).
+over. **Rev 2 (2026-10-28, D5):** "Copy" below now means "move into the shared
+`nova-core` crate" (PLAN.md §5), used by both editions; nothing is duplicated.
+D2 (chrome in HTML/CSS) means `ui/*.html` are reused, not rewritten as GTK
+widgets; D3 means the adblock engine runs in `extension/`.
 
 ## 1. Modules
 

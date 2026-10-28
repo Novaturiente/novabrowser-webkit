@@ -4,6 +4,10 @@ Every feature the CEF edition (novabrowser 0.1.8) has, how it does it, and how
 the WebKitGTK 6.0 edition will. API names are WebKitGTK 6.0 (`webkit_…`
 functions, `Signal::name` signals) unless marked.
 
+Rev 2 (2026-10-28): decisions D1–D7 are in PLAN.md §2. Where a row below says
+"D2" the chrome is HTML/CSS in WebViews; "D3" = adblock engine in the extension;
+"D6" = Dark Reader port first.
+
 Verdict: **same** (direct equivalent), **better** (WebKit does more),
 **worse** (works with a known limit), **gap** (not possible; what we do instead),
 **spike** (unknown until a Phase 0 spike, PLAN.md §5).
