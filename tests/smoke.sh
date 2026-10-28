@@ -80,6 +80,12 @@ n=$(ntabs); "$bin" --cmd "tab-close" >/dev/null; sleep 0.5
 "$bin" --cmd "undo" >/dev/null
 wait_for '"title":"four"' 5 && [ "$(ntabs)" = "$n" ] && ok "undo reopens the closed tab" || fail "undo: $(q)"
 
+# find: match count, not found
+"$bin" --cmd "/link" >/dev/null
+wait_for '"message":"info: 2 matches"' 5 && ok "find counts matches" || fail "find: $(q)"
+"$bin" --cmd "/zzqqxx" >/dev/null
+wait_for 'not found on page' 5 && ok "find reports no match" || fail "find none: $(q)"
+
 # JS dialog lands in the tab-bar prompt; closing its tab drops it
 "$bin" --cmd "open -t data:text/html,<title>dlg</title><script>setTimeout(()=>alert(424242),300)</script>" >/dev/null
 wait_for '"prompt":"[^"]*424242' 10 && ok "alert() shows in the prompt" || fail "alert: $(q)"
@@ -132,6 +138,7 @@ wait_for '"windows":1' 10 && ok ":close closes only that window" || fail "close 
 # downloads: attachment from a local server lands in downloads.location.directory
 srv=$tmp/www; mkdir -p $srv/dl
 echo 'payload' > $srv/dl/file.bin
+echo '<title>notify</title><script>navigator.geolocation.getCurrentPosition(()=>{},()=>{})</script>' > $srv/notify.html
 port=$((20000 + RANDOM % 20000))
 (cd $srv && exec python3 -m http.server $port --bind 127.0.0.1 2>$tmp/http.log) &
 http=$!
@@ -143,6 +150,12 @@ for _ in $(seq 50); do [ -s $tmp/dl/file.bin ] && break; sleep 0.2; done
 "$bin" --cmd "download http://127.0.0.1:$port/dl/file.bin" >/dev/null
 for _ in $(seq 50); do [ -s "$tmp/dl/file (1).bin" ] || [ -s "$tmp/dl/file.1.bin" ] && break; sleep 0.2; done
 [ -s "$tmp/dl/file (1).bin" ] || [ -s "$tmp/dl/file.1.bin" ]; [ $? = 0 ] && ok "second download gets a (1) name" || fail "unique name: $(ls $tmp/dl)"
+
+# a permission request set to ask lands in the prompt; tab close answers no
+"$bin" --cmd "open -t http://127.0.0.1:$port/notify.html" >/dev/null
+wait_for '"prompt":"Allow http://127.0.0.1:[0-9]* to see your location' 10 && ok "geolocation permission prompt" || fail "permission prompt: $(q)"
+"$bin" --cmd "tab-close" >/dev/null
+wait_for '"prompt":null' 5 && ok "closing the tab drops its permission prompt" || fail "prompt drop: $(q)"
 
 # https-toggle on a local http page writes https_excludes; dark-toggle writes darkmode_excludes
 "$bin" --cmd "open -t http://127.0.0.1:$port/dl/" >/dev/null; sleep 1

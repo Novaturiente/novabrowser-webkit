@@ -110,6 +110,24 @@ fn origin_of(view: &WebView) -> String {
     }
 }
 
+/// Saved notification answers, for `initialize-notification-permissions` (WebKit asks
+/// at start so pages see `Notification.permission` right away).
+pub fn init_notifications(ctx: &webkit6::WebContext) {
+    saved("", ""); // load the file
+    let (mut yes, mut no) = (Vec::new(), Vec::new());
+    SAVED.with_borrow(|s| {
+        for (origin, v) in s.iter().flat_map(|m| m.iter()) {
+            let Some(b) = v["content.notifications.enabled"].as_bool() else { continue };
+            let Ok(u) = glib::Uri::parse(origin, glib::UriFlags::NONE) else { continue };
+            let port = u16::try_from(u.port()).unwrap_or(0);
+            let o = webkit6::SecurityOrigin::new(&u.scheme(), &u.host().unwrap_or_default(), port);
+            if b { yes.push(o) } else { no.push(o) }
+        }
+    });
+    let (y, n): (Vec<_>, Vec<_>) = (yes.iter().collect(), no.iter().collect());
+    ctx.initialize_notification_permissions(&y, &n);
+}
+
 /// (settings, words for the prompt) for a WebKit permission request; None = deny silently.
 fn wanted(req: &PermissionRequest) -> Option<Vec<(&'static str, &'static str)>> {
     use webkit6::*;

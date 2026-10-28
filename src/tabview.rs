@@ -133,6 +133,22 @@ pub fn connect(view: &WebView) {
     view.connect_script_dialog(crate::permissions::dialog);
     view.connect_permission_request(crate::permissions::request);
     view.connect_context_menu(context_menu);
+    if let Some(fc) = view.find_controller() {
+        let w = view.downgrade();
+        fc.connect_found_text(move |_, n| {
+            if let Some(v) = w.upgrade() {
+                let text = if n == 1 { "1 match".to_string() } else { format!("{n} matches") };
+                window::in_owner(&v, || window::message("info", &text));
+            }
+        });
+        let w = view.downgrade();
+        fc.connect_failed_to_find_text(move |fc| {
+            if let Some(v) = w.upgrade() {
+                let t = fc.search_text().unwrap_or_default();
+                window::in_owner(&v, || window::message("warning", &format!("Text '{t}' not found on page!")));
+            }
+        });
+    }
 }
 
 /// Navigation policy: middle/Ctrl-click → background tab, magnet links → aria2,
