@@ -21,7 +21,7 @@ Status: `[ ]` todo · `[~]` partial · `[x]` done · `[-]` dropped (reason given
 
 - [x] W9 Speedometer 3.1 — installed `webkitgtk-6.0-nova` 27.25 vs CEF 0.1.8 26.3 (2026-10-28, `spikes/w9-baseline/results/ab-cef.jsonl`); Arch build 18.95 vs own PGO 23.95 in the tool sandbox (`ab-build.jsonl`); env knobs no gain (`ab-env.jsonl`).
 - [~] Own WebKitGTK build — PGO + v3 + ThinLTO, `webkitgtk-6.0-nova` 2.54.2-1 installed on novarch (`spikes/wk-build/`). Left: video/site check (W1, W10), introspection decision (Phase W).
-- [ ] W10 sign-in + site compat — go/no-go (PLAN.md §6)
+- [~] W10 sign-in + site compat — go/no-go (PLAN.md §6). Part 1 done 2026-10-29 (`spikes/w9-baseline/compat.sh`, `results/w10/compat.jsonl` + PNGs, ephemeral session, Safari and stock UA): Google sign-in, Gmail, YouTube, Maps, Meet, ChatGPT, Microsoft login, Outlook, Teams, WhatsApp Web (QR shown, "Download for Mac"), Discord, GitHub, Slack, Figma, HDFC, SBI YONO, Reddit (JS challenge passed), X all load their normal pages; no "unsupported browser" text on any; identical for both UAs. YouTube video loaded but didn't autoplay (no gesture; playback is W1). Left (needs user): real sign-ins — Google, ChatGPT via Google, Microsoft/Teams, WhatsApp QR link, Discord, a bank; Meet call.
 - [ ] W1 Wayland + media (HiDPI, clipboard, `<select>`, IME, VA-API, H.264/AAC, WebRTC)
 - [ ] W2 layout + transparent chrome views + focus hand-off
 - [ ] W3 key capture
@@ -240,6 +240,7 @@ Other
 
 Newest first. Settled — don't reopen without new evidence.
 
+- 2026-10-29 — D9 (user): no DRM in the WebKit edition v1; DRM sites stay in the CEF edition.
 - 2026-10-28 — D8 (user): appear as macOS Safari by default (UA + `navigator.platform`); `content.user_agent` keeps `webkit` and custom values, per site. Safari version token followed by hand (27.0 now).
 
 - 2026-10-28 — D1–D7 (user; PLAN.md §2): GTK 4 + WebKitGTK 6.0; chrome in HTML/CSS (user wants full styling freedom, tab bar redesign later — assistant had recommended native GTK); adblock engine in the web-process extension (assistant had recommended content filters; RSS checked in W7); separate dirs + `--import novabrowser`; extract `nova-core` first (assistant had recommended copying first; risk: refactor of the shipping CEF edition); Dark Reader port if ≤ 3% Speedometer cost, else color scheme; ship `webkitgtk-6.0-nova` on the AUR (we own its security updates).
@@ -251,6 +252,8 @@ Newest first. Settled — don't reopen without new evidence.
 ## Session log
 
 Newest first.
+
+- 2026-10-29 (IST, 00:15) — D9 added (no DRM in v1). W10 part 1: 18 sites × {safari, webkit} load normally, no unsupported-browser pages. Next: user sign-ins in the spike with `--safari`.
 
 - 2026-10-28 (IST, 23:55) — Safari identity spike (`w9-baseline --safari --probe`): httpbin and page JS both report `Macintosh; Intel Mac OS X 10_15_7 … Version/27.0 Safari/605.1.15`, `platform=MacIntel`, `vendor=Apple Computer, Inc.`, no `userAgentData` (like real Safari). Speedometer default 26.7/26.7 vs safari 26.6/26.8. Decision D8 added.
 

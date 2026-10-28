@@ -11,6 +11,8 @@ const SPEEDOMETER: &str = "https://browserbench.org/Speedometer3.1/";
 const SAFARI_UA: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15";
 /// navigator.platform must match the UA, else scripts see Linux behind a Mac UA.
 const SAFARI_JS: &str = "Object.defineProperty(Navigator.prototype, 'platform', {get: () => 'MacIntel', configurable: true});";
+/// W10: what the page shows after it settles (title, final URL, text start, playing media).
+const COMPAT: &str = "JSON.stringify({title: document.title, url: location.href, text: (document.body ? document.body.innerText : '').replace(/\\s+/g, ' ').slice(0, 600), playing: [...document.querySelectorAll('video,audio')].some(m => !m.paused && m.currentTime > 0)})";
 const PROBE: &str = "JSON.stringify({ua: navigator.userAgent, platform: navigator.platform, vendor: navigator.vendor, uaData: typeof navigator.userAgentData, appVersion: navigator.appVersion})";
 
 fn main() -> glib::ExitCode {
@@ -18,6 +20,8 @@ fn main() -> glib::ExitCode {
     let bench = args.iter().any(|a| a == "--speedometer");
     let safari = args.iter().any(|a| a == "--safari");
     let probe = args.iter().any(|a| a == "--probe");
+    // --compat: ephemeral session, settle 8 s, print COMPAT JSON, PNG to $W10_SHOT, exit
+    let compat = args.iter().any(|a| a == "--compat");
     let args: Vec<String> = args.into_iter().filter(|a| !a.starts_with("--")).collect();
     let url = if bench {
         SPEEDOMETER.to_string()
@@ -29,7 +33,20 @@ fn main() -> glib::ExitCode {
         .flags(gtk::gio::ApplicationFlags::NON_UNIQUE)
         .build();
     app.connect_activate(move |app| {
-        let view = WebView::new();
+        let view = if compat {
+            WebView::builder().network_session(&webkit6::NetworkSession::new_ephemeral()).build()
+        } else {
+            WebView::new()
+        };
+        if compat {
+            let done = std::cell::Cell::new(false);
+            view.connect_load_changed(move |v, ev| {
+                if ev == LoadEvent::Finished && !done.replace(true) {
+                    let v = v.clone();
+                    glib::timeout_add_local_once(Duration::from_secs(8), move || shot(v));
+                }
+            });
+        }
         if safari {
             if let Some(s) = WebViewExt::settings(&view) {
                 s.set_user_agent(Some(SAFARI_UA));
@@ -90,6 +107,25 @@ const BEFORE: &str = "JSON.stringify({w: innerWidth, h: innerHeight, dpr: device
 const START: &str = "document.querySelector('.start-tests-button').click(); 'ok'";
 const POLL: &str = "JSON.stringify({hash: location.hash, vis: document.visibilityState, focus: document.hasFocus(), res: document.getElementById('result-number').textContent.trim()})";
 const RESULT: &str = "JSON.stringify({score: parseFloat(document.getElementById('result-number').textContent), confidence: document.getElementById('confidence-number').textContent.trim(), valid: document.getElementById('summary').className === 'valid', vis: document.visibilityState, focus: document.hasFocus()})";
+
+fn shot(v: WebView) {
+    let v2 = v.clone();
+    eval(&v, COMPAT, move |r| {
+        println!("{r}");
+        let path = std::env::var("W10_SHOT").unwrap_or_else(|_| "/tmp/w10.png".into());
+        v2.snapshot(
+            webkit6::SnapshotRegion::Visible,
+            webkit6::SnapshotOptions::NONE,
+            None::<&gtk::gio::Cancellable>,
+            move |t| {
+                if let Ok(t) = t {
+                    let _ = t.save_to_png(&path);
+                }
+                std::process::exit(0);
+            },
+        );
+    });
+}
 
 fn run(v: WebView) {
     let v2 = v.clone();
