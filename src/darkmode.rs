@@ -1,21 +1,36 @@
-//! Per-site dark mode (`colors.webpage.darkmode.enabled`) with Dark Reader (D6;
-//! `vendor/darkreader`, MIT) in our isolated world. Pages that should be dark get it
-//! as a per-tab user script at document start (swapped at main-frame decide-policy);
-//! a page already loaded is switched live.
-//! shortcut: `darkmode.algorithm` / `policy.images` are Chromium knobs; Dark Reader's own image handling is used.
+//! Per-site dark mode (`colors.webpage.darkmode.enabled`) with WebKit's own colour filter
+//! (`-apple-color-filter: apple-invert-lightness()`, the Apple Mail dark mode): it inverts
+//! the lightness of CSS colours (text, backgrounds, borders, SVG fills) at paint time and
+//! leaves images alone, close to Chromium's forced dark. The `ColorFilter` feature is on in
+//! every page's settings (web.rs); the property does nothing until this user style sets it.
+//! W13: no measurable Speedometer cost (Dark Reader −42%, CSS invert −12% and unreadable text).
+//! Pages already dark on their own (GitHub under a dark system theme) are left alone, as in
+//! Chromium: a document-end script in our world marks them and the style skips marked roots.
+//! shortcut: `darkmode.algorithm` / `policy.images` are Chromium knobs and are ignored here;
+//! text baked into images and CSS background-images stay as they are; a page that turns
+//! dark only after DOMContentLoaded gets inverted back to light.
 use crate::{config, web};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use webkit6::prelude::*;
-use webkit6::{UserContentInjectedFrames, UserScript, UserScriptInjectionTime, WebView};
+use webkit6::{UserContentInjectedFrames, UserScript, UserScriptInjectionTime, UserStyleLevel, UserStyleSheet, WebView};
 
-const DARK_READER: &str = include_str!("../vendor/darkreader/darkreader.js");
-const ENABLE: &str = "DarkReader.setFetchMethod(window.fetch);\
- DarkReader.enable({mode: 1, brightness: 100, contrast: 100, sepia: 0});";
+const CSS: &str = ":root:not([data-nova-native-dark]) { -apple-color-filter: apple-invert-lightness() !important; }";
+/// Marks the root when the page paints dark itself: its root/body background is dark, or it has
+/// no background and its `color-scheme` picks dark. Computed colours are unfiltered.
+const NATIVE_DARK: &str = r#"(() => {
+  const lum = c => { const m = (c || '').match(/[\d.]+/g);
+    return !m || (m[3] !== undefined && +m[3] === 0) ? null : (0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]) / 255; };
+  const d = document.documentElement; if (!d) return;
+  const bg = [d, document.body].map(e => e && lum(getComputedStyle(e).backgroundColor)).find(x => x != null);
+  const cs = getComputedStyle(d).colorScheme || '';
+  const dark = bg != null ? bg < 0.4 : /dark/.test(cs) && (!/light/.test(cs) || matchMedia('(prefers-color-scheme: dark)').matches);
+  if (dark) d.setAttribute('data-nova-native-dark', '');
+})()"#;
 
 thread_local! {
-    /// view id -> its Dark Reader script, while the tab is dark.
-    static ON: RefCell<HashMap<usize, UserScript>> = RefCell::new(HashMap::new());
+    /// view id -> its dark style sheet and native-dark check, while the tab is dark.
+    static ON: RefCell<HashMap<usize, (UserStyleSheet, UserScript)>> = RefCell::new(HashMap::new());
 }
 
 fn dark_at(url: &str) -> bool {
@@ -26,47 +41,33 @@ fn dark_at(url: &str) -> bool {
             .unwrap_or(false)
 }
 
-/// The current page after a config change or `dark-toggle`: switch it live.
+/// The current page after a load commit, a config change or `dark-toggle`.
 pub fn apply(view: &WebView) {
     let url = view.uri().map(|u| u.to_string()).unwrap_or_default();
-    let was = ON.with_borrow(|o| o.contains_key(&web::id(view)));
-    let want = dark_at(&url);
     apply_for(view, &url);
-    if want == was {
-        return;
-    }
-    let js = if want {
-        format!("if (!globalThis.DarkReader) {{ {DARK_READER} }} {ENABLE}")
-    } else {
-        "globalThis.DarkReader && DarkReader.disable()".to_string()
-    };
-    web::eval_quiet(view, &js);
 }
 
-/// A main-frame navigation to `url` is about to go ahead: install or drop the
-/// document-start script so the page is dark from its first paint.
+/// Make the view dark iff `url` should be. Adding or removing a user style sheet also
+/// restyles the page already shown, so this switches live.
 pub fn apply_for(view: &WebView, url: &str) {
     let id = web::id(view);
     let want = dark_at(url);
-    let have = ON.with_borrow(|o| o.contains_key(&id));
-    if want == have {
+    if want == ON.with_borrow(|o| o.contains_key(&id)) {
         return;
     }
     let Some(ucm) = view.user_content_manager() else { return };
-    if let Some(old) = ON.with_borrow_mut(|o| o.remove(&id)) {
-        ucm.remove_script(&old);
+    if let Some((css, js)) = ON.with_borrow_mut(|o| o.remove(&id)) {
+        ucm.remove_style_sheet(&css);
+        ucm.remove_script(&js);
     }
     if want {
-        let s = UserScript::for_world(
-            &format!("{DARK_READER}\n{ENABLE}"),
-            UserContentInjectedFrames::AllFrames,
-            UserScriptInjectionTime::Start,
-            web::WORLD,
-            &[],
-            &[],
-        );
-        ucm.add_script(&s);
-        ON.with_borrow_mut(|o| o.insert(id, s));
+        let css = UserStyleSheet::new(CSS, UserContentInjectedFrames::AllFrames, UserStyleLevel::User, &[], &[]);
+        let js = UserScript::for_world(NATIVE_DARK, UserContentInjectedFrames::AllFrames, UserScriptInjectionTime::End, web::WORLD, &[], &[]);
+        ucm.add_style_sheet(&css);
+        ucm.add_script(&js);
+        // already-loaded page (live toggle): user scripts only run on the next load
+        web::eval_quiet(view, NATIVE_DARK);
+        ON.with_borrow_mut(|o| o.insert(id, (css, js)));
     }
 }
 

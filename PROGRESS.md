@@ -36,7 +36,7 @@ in nova-core: 89).
 - [x] W8 session state restore — WebKit session-state blob per tab (S: restore at start)
 - [x] W11 permissions, TLS errors, JS dialogs — S: geolocation prompt, alert prompt, both dropped on tab close; TLS [m]
 - [ ] W12 headless PGO training on novahome
-- [x] W13 Dark Reader overhead, measured 2026-10-29 (`spikes/w9-baseline/ab-darkreader.sh`, Safari identity, 3 interleaved rounds, AC): off 26.7/26.8/26.8, Dark Reader 16.0/15.5/15.6 (**−42%**), inverting CSS 23.3/23.6/23.5 (**−12%**). Both fail the 3% rule; dark mode only runs on sites the user turned dark, so the cost stays on those sites. Decision pending: which one ships.
+- [x] W13 Dark Reader overhead, measured 2026-10-29 (`spikes/w9-baseline/ab-darkreader.sh`, Safari identity, 3 interleaved rounds, AC): off 26.7/26.8/26.8, Dark Reader 16.0/15.5/15.6 (**−42%**), inverting CSS 23.3/23.6/23.5 (**−12%**). Both fail the 3% rule (CSS invert also left text unreadable, user). WebKit's own colour filter (`-apple-color-filter`, feature `ColorFilter`, no WebKit rebuild needed): off 26.9/26.6/26.8 vs on 27.1/25.0/27.0, no measurable cost → shipped (D6). Dark Reader removed.
 - [ ] W14 real-site perf: scroll, idle RSS, startup vs CEF
 
 ## Phase C — nova-core (PLAN.md §5)
@@ -173,7 +173,7 @@ Prompts and permissions
 - [~] 7.18 TLS error → a prompt (not a `nova://` page); yes = `allow_tls_certificate_for_host` + reload [m]
 
 Appearance
-- [~] 7.19 Dark mode per site (S: `dark-toggle`): Dark Reader 4.9.134 (vendor/darkreader, MIT) at document start in world `novabrowser`, live switch on toggle; screenshot-checked on Wikipedia. Cost per W13 [m] look
+- [~] 7.19 Dark mode per site (S: `dark-toggle`): WebKit colour filter as a per-view user style, live switch on toggle; pages already dark (GitHub on a dark system theme) skipped via a document-end check in world `novabrowser`. Screenshot-checked: Wikipedia live + fresh load dark, GitHub stays dark. Images keep their colours (Rust logo black on dark) [m] look
 - [m] 7.20 Spellcheck
 
 ## Phase 8 — Sessions and daily driving

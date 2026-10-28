@@ -195,6 +195,12 @@ fn page_settings() -> Settings {
     s.set_enable_webrtc(true);
     s.set_enable_media_stream(true);
     s.set_enable_encrypted_media(false); // D9: no DRM
+    // `-apple-color-filter` for dark mode (darkmode.rs); inert until a style sets it
+    if let Some(all) = Settings::all_features() {
+        if let Some(f) = (0..all.length()).filter_map(|i| all.get(i)).find(|f| f.identifier().as_deref() == Some("ColorFilter")) {
+            s.set_feature_enabled(&f, true);
+        }
+    }
     if let Some(ua) = user_agent_for("") {
         s.set_user_agent(Some(&ua));
     }

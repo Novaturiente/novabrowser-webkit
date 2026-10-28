@@ -6,7 +6,7 @@ functions, `Signal::name` signals) unless marked.
 
 Rev 2 (2026-10-28): decisions D1–D7 are in PLAN.md §2. Where a row below says
 "D2" the chrome is HTML/CSS in WebViews; "D3" = adblock engine in the extension;
-"D6" = Dark Reader port first.
+"D6" = WebKit colour filter (`-apple-color-filter`) dark mode.
 
 Verdict: **same** (direct equivalent), **better** (WebKit does more),
 **worse** (works with a known limit), **gap** (not possible; what we do instead),
@@ -119,7 +119,7 @@ Verdict: **same** (direct equivalent), **better** (WebKit does more),
 | WebRTC IP policy | `--force-webrtc-ip-handling-policy` | none known; WebRTC itself is spike W1 | **gap** [Guessing] |
 | Hyperlink auditing off | `--no-pings` | `enable-hyperlink-auditing` false | same |
 | No calls to Google with no page open | disabled features, prefs, CEF privacy patch | WebKitGTK has no Safe Browsing, sign-in or component updater [Likely]; set `enable-dns-prefetching` false; verify with a network capture | better (no patch) |
-| Per-site dark mode (`colors.webpage.darkmode.enabled`, excludes, `dark-toggle`, `darkmode_excludes` file) | `WebContentsForceDark` + CDP `Emulation.setAutoDarkModeOverride` per tab | D6: `prefers-color-scheme: dark` via GTK dark preference + per-site injected dark stylesheet user script | **worse** |
+| Per-site dark mode (`colors.webpage.darkmode.enabled`, excludes, `dark-toggle`, `darkmode_excludes` file) | `WebContentsForceDark` + CDP `Emulation.setAutoDarkModeOverride` per tab | D6: per-view user style `-apple-color-filter: apple-invert-lightness()` (feature `ColorFilter`), native-dark pages skipped | same idea (paint-time colour filter), images untouched |
 | `colors.webpage.preferred_color_scheme` | `blink-settings=preferredColorScheme` | GTK dark/light preference for the app (`gtk-application-prefer-dark-theme`) [Likely]; global only | same globally |
 | Spellcheck (`spellcheck.languages`) | Chromium prefs + dictionary download | `WebContext.set_spell_checking_enabled/languages` (Enchant, system dictionaries) | same |
 | Autofill off (card-save crash) | prefs | not needed (WebKitGTK has no autofill UI) | n/a |

@@ -26,8 +26,10 @@ Details in [docs/feature-map.md](docs/feature-map.md).
 - **No trusted synthetic input.** CEF's DevTools `Input.dispatch*` has no
   WebKitGTK / GTK 4 equivalent. Hint clicks, `fake-key` and scrolling become
   JavaScript events (`isTrusted=false`).
-- **No forced dark mode.** WebKit has no `WebContentsForceDark`. Dark mode
-  becomes `prefers-color-scheme` plus an injected stylesheet.
+- **Dark mode is WebKit's colour filter.** WebKit has no `WebContentsForceDark`;
+  dark sites get `-apple-color-filter: apple-invert-lightness()` (the hidden
+  `ColorFilter` feature, switched on in our settings). Colours invert, images do
+  not; text baked into images stays as it is.
 - **No Widevine.** Netflix, Spotify web and similar will not play.
 - **Per-site cookie rules** shrink to one global policy plus WebKit ITP.
 - **Site compatibility and speed** are WebKitGTK's, not Chrome's (measured in spike W9).

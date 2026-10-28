@@ -83,7 +83,7 @@ Not measured yet: real-site speed, scrolling, memory, startup, video.
 | D3 | **adblock engine inside the web-process extension** | Full fidelity (network + cosmetic + scriptlets, incl. `$redirect`, `$removeparam`). One engine per web process: RSS cost measured in W7; engine shared as a read-only serialized file the extension deserializes. |
 | D4 | **Separate dirs** `~/.config/novabrowser-webkit`, `$XDG_DATA_HOME/novabrowser-webkit` + `--import novabrowser` | Both editions run side by side; two configs to keep in sync by hand. |
 | D5 | **Extract a shared `nova-core` crate first** | Phase C refactors the shipping CEF edition before WebKit work starts. Its tests + smoke must stay green and its release flow must still build. |
-| D6 | **Dark Reader port first**, fall back to `prefers-color-scheme` + injected CSS if the overhead is too high | Spike W13: Speedometer A/B with the Dark Reader engine; budget ≤ 3% (rule from the CEF edition, 2026-10-12). |
+| D6 | **WebKit's colour filter** (`-apple-color-filter: apple-invert-lightness()`, feature `ColorFilter`) as a per-view user style on dark sites; pages already dark are skipped. Dark Reader dropped (user, 2026-10-29). | W13: Dark Reader −42%, inverting CSS −12% and unreadable text, colour filter no measurable cost; budget ≤ 3% (rule from the CEF edition, 2026-10-12). |
 | D8 | **Identify as macOS Safari** by default: UA `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15` + `navigator.platform = "MacIntel"` (user script, main world, all frames, document start). Setting `content.user_agent` = `safari` (default) / `webkit` (stock Linux UA) / custom string, per site via `pattern()` | Checked in spike: page and server both see Safari 27 on Mac; Speedometer unchanged (26.6/26.8 vs 26.7/26.7). Risks: sites offer Mac downloads and ⌘ key hints; `Version/27.0` must be bumped with Safari releases; fingerprint scripts can still spot Linux (fonts, WebGL renderer); WebKit's own site quirks may override the UA on some Google domains [Likely]. |
 | D9 | **No DRM in v1** (user, after D8): no EME/Widevine build; DRM sites stay in the CEF edition | Sparkle-CDM + `sparkle-cdm-widevine` path exists (`ENABLE_ENCRYPTED_MEDIA` + `ENABLE_THUNDER`), but L3 only, fragile, Widevine blob not redistributable, and a Safari UA makes sites pick FairPlay. Revisit only if this edition replaces the CEF one (spike W15). |
 | D7 | **Ship `webkitgtk-6.0-nova` on the AUR** | We own WebKitGTK security updates for every user of it (Phase W). x86-64-v3 only; `novabrowser-webkit` itself depends on `libwebkitgtk-6.0.so`, so stock `webkitgtk-6.0` also works. |
@@ -105,7 +105,7 @@ Not measured yet: real-site speed, scrolling, memory, startup, video.
 | Config | `config.ts` → `oxc` → QuickJS (`rquickjs`), from `nova-core` |
 | Storage | SQLite (`rusqlite`) + JSON/text, same formats as the CEF edition |
 | Adblock | `adblock` 0.13.3 in the extension (D3) |
-| Dark mode | Dark Reader engine (MIT) in world `novabrowser` (D6) |
+| Dark mode | WebKit colour filter user style + native-dark check in world `novabrowser` (D6) |
 | Media | GStreamer: `gst-libav` (H.264/AAC), `gst-plugin-va` (VA-API) |
 | Packaging | AUR `novabrowser-webkit` (+ `-bin`), AUR `webkitgtk-6.0-nova-bin` |
 
@@ -208,7 +208,7 @@ the tool sandbox.
 | W10 | Sign-in + compat | Google, ChatGPT "Sign in with Google", Microsoft, a bank, WhatsApp Web, Discord, Meet, YouTube, Gmail, Maps: works / degraded / blocked, with and without a UA override. **Go/no-go for the project** |
 | W11 | Permissions, TLS, dialogs | permission-request for notifications, geolocation, mic/cam, clipboard, pointer lock; held answers; `load-failed-with-tls-errors` on badssl; `script-dialog` held then answered |
 | W12 | Headless PGO training | instrumented WebKitGTK runs Speedometer on novahome under a headless compositor (`cage` or `weston --backend=headless`), profile within 2% of the laptop-trained build |
-| W13 | Dark Reader overhead | Speedometer A/B with the Dark Reader engine injected: ≤ 3% → port it (D6); else color-scheme fallback |
+| W13 | Dark mode overhead | Speedometer A/B of Dark Reader, inverting CSS and the colour filter (`ab-darkreader.sh`); done, colour filter chosen (D6) |
 | W14 | Real-site perf | scroll FPS / jank on YouTube, GitHub, Maps, Reddit, Wikipedia, idle RSS (5 sites), startup to first paint: vs CEF edition (method `../novabrowser/novabrowser/spikes/s9-baseline`) |
 
 ---
@@ -272,7 +272,7 @@ per item.
 | Sites block or degrade WebKitGTK | not usable daily | W10 before anything else; per-site UA override (`content.user_agent`) |
 | Untrusted JS input fails on some sites | hints/fake-key broken there | W5 list; `href` navigation, focus + editing commands |
 | Adblock engine per web process costs too much RAM | memory blow-up with many sites | W7 numbers; shared mmap of the engine file; fall back to content filter for network rules |
-| Dark Reader too slow | Speedometer regression | W13 gate, fallback in D6 |
+| Colour filter misses images / late-dark pages | Unreadable spots | W13 shots; documented shortcut in `src/darkmode.rs` |
 | We miss a WebKitGTK security release | users run a vulnerable engine | Phase W policy, version watch, `-bin` description |
 | nova-core refactor breaks the CEF edition | regression in the shipping browser | C steps each gated by tests + smoke + package build |
 | HTML chrome adds memory/latency | slower UI | one shared UI web process; measure key → palette latency (< 16 ms) |
