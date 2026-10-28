@@ -1,0 +1,22 @@
+[package]
+name = "novabrowser-webkit"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+description = "Keyboard-driven browser on WebKitGTK, configured in TypeScript"
+publish = false
+
+[workspace]
+members = ["ext"]
+
+[dependencies]
+adblock = { version = "0.13.3", default-features = false, features = ["embedded-domain-resolver", "full-regex-handling"] }
+gtk = { package = "gtk4", version = "0.11", features = ["v4_18"] }
+webkit6 = { version = "0.6", features = ["v2_52"] }
+# Shared with novabrowser (CEF). Local path while both move together; pinned git rev for releases.
+nova-core = { path = "../novabrowser/nova-core" }
+serde_json = "1.0.152"
+
+[profile.release]
+lto = "thin"
+strip = true

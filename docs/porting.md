@@ -1,6 +1,6 @@
 # Porting plan
 
-How each part of the CEF edition (`../novabrowser`, 0.1.8, `9574fca`) moves
+How each part of the CEF edition (`../novabrowser/novabrowser`, 0.1.8, `9574fca`) moves
 over. **Rev 2 (2026-10-28, D5):** "Copy" below now means "move into the shared
 `nova-core` crate" (PLAN.md §5), used by both editions; nothing is duplicated.
 D2 (chrome in HTML/CSS) means `ui/*.html` are reused, not rewritten as GTK

@@ -1,10 +1,10 @@
 #!/bin/bash
 # W9: Speedometer 3.1, installed WebKitGTK (sandbox on) vs installed CEF novabrowser
-# (bare profile, ../../../novabrowser/spikes/s9-baseline kind novabare), interleaved rounds.
+# (bare profile, ../../../novabrowser/novabrowser/spikes/s9-baseline kind novabare), interleaved rounds.
 # usage: ./ab-cef.sh [rounds=4]  -> results/ab-cef.jsonl
 cd "$(dirname "$0")"
 here=$PWD
-s9=$here/../../../novabrowser/spikes/s9-baseline
+s9=$here/../../../novabrowser/novabrowser/spikes/s9-baseline
 out=$here/results/ab-cef.jsonl
 for r in $(seq "${1:-4}"); do
   res=$(target/release/w9-baseline --speedometer 2>/dev/null | grep '^{')

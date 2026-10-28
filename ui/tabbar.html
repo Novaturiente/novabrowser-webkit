@@ -1,0 +1,113 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>tabbar</title>
+<style>
+  /* Colours/fonts/sizes are CSS variables from config (theme.rs), set by nova.theme. */
+  html, body { margin: 0; height: 100%; }
+  body { display: flex; overflow: hidden; background: var(--colors-tabs-bar-bg, #555);
+         user-select: none; cursor: default; }
+  body.vertical { flex-direction: column; overflow-y: auto; }
+  .t { flex: 1 1 0; min-width: 0; max-width: var(--tabs-max-width, none); box-sizing: border-box;
+       padding: var(--tabs-padding, 0 5px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+       text-align: var(--tabs-title-alignment, left); font: var(--fonts-tabs-unselected, 10pt monospace);
+       color: var(--colors-tabs-odd-fg); background: var(--colors-tabs-odd-bg);
+       border-left: var(--tabs-indicator-width, 3px) solid transparent; }
+  body:not(.vertical) .t { min-width: min(var(--tabs-min-width, 0px), 100%); }
+  body.vertical .t { flex: 0 0 auto; max-width: none; }
+  .t:nth-child(even) { color: var(--colors-tabs-even-fg); background: var(--colors-tabs-even-bg); }
+  .t.a { font: var(--fonts-tabs-selected, 10pt monospace);
+         color: var(--colors-tabs-selected-odd-fg); background: var(--colors-tabs-selected-odd-bg); }
+  .t.a:nth-child(even) { color: var(--colors-tabs-selected-even-fg); background: var(--colors-tabs-selected-even-bg); }
+  .t.l { border-left-color: var(--colors-tabs-indicator-start); }
+  .t.d { border-left-color: var(--colors-tabs-indicator-stop); }
+  .t.e { border-left-color: var(--colors-tabs-indicator-error); }
+  .t.z { opacity: .5; }
+  .t img { width: 1.2em; height: 1.2em; vertical-align: -0.25em; margin-right: .4em; }
+  body:not(.vertical) .t.n:not(.a) { flex: 0 0 auto; min-width: 0; }
+  .t img:last-child { margin-right: 0; }
+  /* Status (no status bar): mode, pending keys, message at the end; load progress as a line. */
+  #tabs { display: contents; }
+  /* Tabs overflow inside their own box, so many tabs can't push #info (prompts!) off the bar. */
+  body:not(.vertical) #tabs { display: flex; flex: 1 1 0; min-width: 0; overflow: hidden; }
+  /* named profile, always first in the bar */
+  #profile { flex: 0 0 auto; align-self: center; margin: 0 6px; padding: 1px 10px; border-radius: 999px;
+             font: var(--fonts-tabs-selected, inherit); font-weight: bold;
+             background: var(--colors-tabs-indicator-start, #48f); color: var(--colors-tabs-bar-bg, #000); }
+  #profile:empty { display: none; }
+  body.vertical #profile { align-self: stretch; margin: 6px 8px; text-align: center; }
+  #info { margin-left: auto; display: flex; align-items: center; gap: 6px; padding: 0 8px; flex: 0 1 auto;
+          min-width: 0; font: var(--fonts-statusbar, 10pt monospace); white-space: nowrap; }
+  body.vertical #info { margin: auto 0 0; padding: 6px 8px; flex-wrap: wrap; white-space: normal;
+                        position: sticky; bottom: 0; background: var(--colors-tabs-bar-bg, #555); }
+  #info span:empty { display: none; }
+  #info span { padding: 1px 9px; border-radius: 999px; overflow: hidden; text-overflow: ellipsis; }
+  #mode { color: var(--colors-statusbar-normal-fg); background: var(--colors-statusbar-normal-bg); }
+  #mode.insert { color: var(--colors-statusbar-insert-fg); background: var(--colors-statusbar-insert-bg); }
+  #mode.passthrough { color: var(--colors-statusbar-passthrough-fg); background: var(--colors-statusbar-passthrough-bg); }
+  #mode.command { color: var(--colors-statusbar-command-fg); background: var(--colors-statusbar-command-bg); }
+  #keys { color: var(--colors-statusbar-normal-fg); background: var(--colors-statusbar-normal-bg); }
+  #msg { min-width: 0; }
+  #dl { color: var(--colors-statusbar-normal-fg); background: var(--colors-statusbar-normal-bg); cursor: pointer;
+        font-variant-numeric: tabular-nums; }
+  #dl.run { color: var(--colors-downloads-start-fg, inherit); background: var(--colors-downloads-start-bg, inherit); }
+  #dl.done { color: var(--colors-downloads-stop-fg, inherit); background: var(--colors-downloads-stop-bg, inherit); }
+  #dl.fail { color: var(--colors-downloads-error-fg, inherit); background: var(--colors-downloads-error-bg, inherit); }
+  #msg.error { color: var(--colors-messages-error-fg); background: var(--colors-messages-error-bg); }
+  #msg.warning { color: var(--colors-messages-warning-fg); background: var(--colors-messages-warning-bg); }
+  #msg.prompt { color: var(--colors-prompts-fg); background: var(--colors-prompts-bg); border: var(--colors-prompts-border, none); }
+  #msg.info { color: var(--colors-messages-info-fg); background: var(--colors-messages-info-bg); }
+  #progress { position: fixed; left: 0; bottom: 0; height: 2px; width: 0; transition: width 120ms;
+              background: var(--colors-statusbar-progress-bg); }
+  body.vertical #progress { top: 0; bottom: auto; }
+</style>
+<body>
+<div id="profile"></div><div id="tabs"></div><div id="info"><span id="msg"></span><span id="keys"></span><span id="dl" title="Downloads"></span><span id="mode"></span></div><div id="progress"></div>
+<script>
+  const $ = (id) => document.getElementById(id);
+  nova.theme = (t) => {
+    for (const [k, v] of Object.entries(t.vars)) document.documentElement.style.setProperty(k, v);
+    document.body.classList.toggle("vertical", t.vertical);
+  };
+  // Core → UI: nova.apply({tabs: [{t: label, a: active, l: loading, p: progress, e: crashed}],
+  //   status: {mode, modename, cmd, keys, level, msg, loading, p, crashed}}).
+  let tipTimer, dragFrom = -1;
+  // drag a tab onto another to move it there (the press already focused it, so move the active tab)
+  document.onmouseup = () => { dragFrom = -1; };
+  nova.apply = (s) => {
+    const st = s.status;
+    $("profile").textContent = st.profile;
+    $("mode").textContent = st.cmd ? "" : st.mode.replace(/^-- | --$/g, "");
+    $("mode").className = st.modename;
+    $("keys").textContent = st.keys;
+    $("dl").textContent = st.dl;
+    $("dl").className = st.dlc;
+    $("msg").textContent = st.msg;
+    $("msg").className = st.level;
+    $("progress").style.width = st.loading ? Math.max(3, Math.round(st.p * 100)) + "%" : "0";
+    $("tabs").replaceChildren(...s.tabs.map((tab, i) => {
+      const d = document.createElement("div");
+      d.className = "t" + (tab.a ? " a" : "") + (tab.e ? " e" : tab.l ? " l" : " d") + (tab.n ? " n" : "") + (tab.z ? " z" : "");
+      if (tab.i) { const img = document.createElement("img"); img.src = tab.i; d.append(img); }
+      d.append(tab.t);
+      d.onmousedown = (e) => {
+        clearTimeout(tipTimer);
+        if (e.button === 0) { dragFrom = i; nova.send("tab " + i); }
+        if (e.button === 1) { e.preventDefault(); nova.send("close " + i); }
+        if (e.button === 2) { const r = d.getBoundingClientRect(); nova.send(`menu ${i} ${Math.round(e.clientX)} ${Math.round(r.bottom)} ${Math.round(r.right)}`); }
+      };
+      d.onmouseup = (e) => { if (e.button === 0 && dragFrom >= 0 && dragFrom !== i) nova.send("move " + i); };
+      d.oncontextmenu = (e) => e.preventDefault();
+      // hover: full title + URL after a short wait
+      d.onmouseenter = () => {
+        clearTimeout(tipTimer);
+        tipTimer = setTimeout(() => { const r = d.getBoundingClientRect(); nova.send(`tip ${i} ${Math.round(r.left)} ${Math.round(r.bottom)} ${Math.round(r.right)}`); }, 450);
+      };
+      d.onmouseleave = () => { clearTimeout(tipTimer); nova.send("tip -1"); };
+      return d;
+    }));
+    document.querySelector(".t.a")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  };
+  $("dl").onmousedown = (e) => { e.stopPropagation(); nova.send("run downloads"); };
+  nova.send("ready");
+</script>
+</body>

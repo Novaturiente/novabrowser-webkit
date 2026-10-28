@@ -1,6 +1,6 @@
 # novabrowser-webkit
 
-A WebKitGTK edition of [novabrowser](../novabrowser): the same keyboard-driven,
+A WebKitGTK edition of [novabrowser](../novabrowser/novabrowser): the same keyboard-driven,
 qutebrowser-style browser (modes, hints, palette, config.ts, password-manager
 integration, adblock, userscripts), on **WebKitGTK 6.0 + GTK 4** instead of
 CEF/Chromium.

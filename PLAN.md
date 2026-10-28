@@ -13,7 +13,7 @@ Tags: [Certain] = checked this session, [Likely] = strong inference,
 ## 0. What is known
 
 ### 0.1 Checked (2026-10-28)
-- The CEF edition (`../novabrowser`, 0.1.8, `9574fca`): ~17k lines in `src/`, 4
+- The CEF edition (`../novabrowser/novabrowser`, 0.1.8, `9574fca`): ~17k lines in `src/`, 4
   HTML UI pages, 92 unit tests, `tests/smoke.sh`; every module read [Certain].
 - Rust bindings: `webkit6 0.6.1` (needs `gtk4 0.11` with feature `v4_10`+, we use
   `v4_18`), `webkit-web-process-extension6 0.6.0`, `javascriptcore6` [Certain].
@@ -161,7 +161,7 @@ mode), as in the CEF edition.
 
 ## 5. nova-core (Phase C, D5)
 
-New repo `../nova-core` (GitHub `Novaturiente/nova-core`), used by both editions as
+New repo `../novabrowser/nova-core` (GitHub `Novaturiente/nova-core`), used by both editions as
 a git dependency pinned by rev (`--frozen` AUR builds keep working); local work via
 `[patch]` path override.
 
@@ -209,7 +209,7 @@ the tool sandbox.
 | W11 | Permissions, TLS, dialogs | permission-request for notifications, geolocation, mic/cam, clipboard, pointer lock; held answers; `load-failed-with-tls-errors` on badssl; `script-dialog` held then answered |
 | W12 | Headless PGO training | instrumented WebKitGTK runs Speedometer on novahome under a headless compositor (`cage` or `weston --backend=headless`), profile within 2% of the laptop-trained build |
 | W13 | Dark Reader overhead | Speedometer A/B with the Dark Reader engine injected: ≤ 3% → port it (D6); else color-scheme fallback |
-| W14 | Real-site perf | scroll FPS / jank on YouTube, GitHub, Maps, Reddit, Wikipedia, idle RSS (5 sites), startup to first paint: vs CEF edition (method `../novabrowser/spikes/s9-baseline`) |
+| W14 | Real-site perf | scroll FPS / jank on YouTube, GitHub, Maps, Reddit, Wikipedia, idle RSS (5 sites), startup to first paint: vs CEF edition (method `../novabrowser/novabrowser/spikes/s9-baseline`) |
 
 ---
 

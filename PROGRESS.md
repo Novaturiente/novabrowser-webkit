@@ -6,13 +6,13 @@ pass condition. An item is `[x]` only when that condition was checked in a
 session; the evidence goes on the item.
 
 Status: `[ ]` todo · `[~]` partial · `[x]` done · `[-]` dropped (reason given).
-"CEF ref" = where the CEF edition does it (`../novabrowser/src/`).
+"CEF ref" = where the CEF edition does it (`../novabrowser/novabrowser/src/`).
 
 ## Now
 
 - **Phase:** C (nova-core extraction)
 - **Next action:** C1 — map module dependencies in the CEF edition, create
-  `../nova-core`, move the pure modules (C2).
+  `../novabrowser/nova-core`, move the pure modules (C2).
 - **Blockers:** none.
 
 ---
@@ -37,7 +37,7 @@ Status: `[ ]` todo · `[~]` partial · `[x]` done · `[-]` dropped (reason given
 
 ## Phase C — nova-core (PLAN.md §5)
 
-- [ ] C1 repo `../nova-core` + GitHub `Novaturiente/nova-core`, crate builds
+- [ ] C1 repo `../novabrowser/nova-core` + GitHub `Novaturiente/nova-core`, crate builds
 - [ ] C2 pure modules moved (urlmatch, keys, config + config.js, settings core, marks, import, theme, history, session format, password backends, net pure, downloads pure, aria2 RPC, spawn, hint labels, command parser, permissions logic, adblock lists/engine build, ipc server, profiles, welcome, settings page, write_atomic, dirs) — all 92 CEF tests pass in nova-core
 - [ ] C3 `Host` seam trait; modules with UI calls moved
 - [ ] C4 CEF edition on nova-core: `cargo test`, `tests/smoke.sh`, `makepkg` of `packaging/PKGBUILD` and `release.sh` dry run all pass
@@ -212,7 +212,7 @@ Other
 - [ ] 9.2 AUR `novabrowser-webkit` (source) + `novabrowser-webkit-bin`: depends `libwebkitgtk-6.0.so`, `gtk4`, `gst-plugins-good`; optdepends `gst-libav`, `gst-plugin-va`, `aria2`, `rbw`, `pass`, `bw`; extension under `/usr/lib/novabrowser-webkit/`
 - [ ] 9.3 `.desktop`, icons, `xdg-settings` default-browser instructions
 - [ ] 9.4 `tests/smoke.sh` over IPC (start, `open -t`, hand-over, tab-close, `:set` persisted, `quit -s` exits 0, session saved, no GLib CRITICAL)
-- [ ] 9.5 Docs ported from `../novabrowser/docs/` (getting-started, keybindings, commands, configuration, settings, tabs-sessions-profiles, passwords, downloads, privacy, scripting, migrating, building, troubleshooting) with WebKit differences
+- [ ] 9.5 Docs ported from `../novabrowser/novabrowser/docs/` (getting-started, keybindings, commands, configuration, settings, tabs-sessions-profiles, passwords, downloads, privacy, scripting, migrating, building, troubleshooting) with WebKit differences
 - [ ] 9.6 README with install, keys, differences from the CEF edition
 
 ## Phase 10 — Passwords
@@ -247,7 +247,7 @@ Newest first. Settled — don't reopen without new evidence.
 - 2026-10-28 — Go ahead with the build (user) after `webkitgtk-6.0-nova` matched CEF on Speedometer (27.25 vs 26.3). W10 (site compat) still gates it.
 - 2026-10-28 — Benchmarks and GUI checks run outside the novacode tool sandbox (nested bwrap kills the web process; scores ~15% low inside).
 - 2026-10-28 — novahome builds capped at 20 GB RAM (user: other services must keep running): `systemd-run --user --scope -p MemoryMax=20G`, `-j8`.
-- 2026-10-28 — Project created as a separate repo next to `../novabrowser`; plan from novabrowser 0.1.8 (`9574fca`).
+- 2026-10-28 — Project created as a separate repo next to `../novabrowser/novabrowser`; plan from novabrowser 0.1.8 (`9574fca`).
 
 ## Session log
 

@@ -1,0 +1,16 @@
+[package]
+name = "novabrowser-webkit-ext"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+description = "novabrowser-webkit web process extension: adblock network rules, HTTPS-only, request headers"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+webkit-web-process-extension6 = { version = "0.6", features = ["v2_52"] }
+adblock = { version = "0.13.3", default-features = false, features = ["embedded-domain-resolver", "full-regex-handling"] }
+nova-core = { path = "../../novabrowser/nova-core" }
+serde_json = "1.0.152"

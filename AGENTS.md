@@ -1,7 +1,7 @@
 # novabrowser-webkit — agent instructions
 
 Keyboard-driven browser: Rust core on WebKitGTK 6.0 + GTK 4. The WebKit
-edition of `../novabrowser` (CEF). Design lives in `PLAN.md`, feature detail
+edition of `../novabrowser/novabrowser` (CEF). Design lives in `PLAN.md`, feature detail
 in `docs/feature-map.md`, module reuse in `docs/porting.md`, state in
 `PROGRESS.md`.
 
@@ -20,7 +20,7 @@ in `docs/feature-map.md`, module reuse in `docs/porting.md`, state in
 
 ## Rules
 
-- `../novabrowser` is the reference implementation: read the matching module
+- `../novabrowser/novabrowser` is the reference implementation: read the matching module
   before porting a feature; keep its behaviour, names and messages unless
   `docs/feature-map.md` says otherwise. Never edit it from this repo.
 - Copied files keep `// from novabrowser <commit> src/<file>` on line 1.
