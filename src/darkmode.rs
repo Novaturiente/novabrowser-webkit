@@ -6,9 +6,11 @@
 //! W13: no measurable Speedometer cost (Dark Reader −42%, CSS invert −12% and unreadable text).
 //! Pages already dark on their own (GitHub under a dark system theme) are left alone, as in
 //! Chromium: a document-end script in our world marks them and the style skips marked roots.
+//! It re-checks when the page switches theme later (class/style/attribute change on html or
+//! body, `load`, the system colour scheme, and once at 1 s and 3 s), both ways.
 //! shortcut: `darkmode.algorithm` / `policy.images` are Chromium knobs and are ignored here;
-//! text baked into images and CSS background-images stay as they are; a page that turns
-//! dark only after DOMContentLoaded gets inverted back to light.
+//! text baked into images and CSS background-images stay as they are; a page that is light
+//! until DOMContentLoaded and dark after shows inverted for that moment.
 use crate::{config, web};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -16,16 +18,35 @@ use webkit6::prelude::*;
 use webkit6::{UserContentInjectedFrames, UserScript, UserScriptInjectionTime, UserStyleLevel, UserStyleSheet, WebView};
 
 const CSS: &str = ":root:not([data-nova-native-dark]) { -apple-color-filter: apple-invert-lightness() !important; }";
-/// Marks the root when the page paints dark itself: its root/body background is dark, or it has
-/// no background and its `color-scheme` picks dark. Computed colours are unfiltered.
+/// Marks the root while the page paints dark itself. Background = first opaque of html, body,
+/// else the outermost opaque element under the view centre (SPA wrappers like `#root`); no
+/// background anywhere -> the `color-scheme` the page picks. Computed colours are unfiltered.
+/// Installed once per document; running it again (live toggle) just re-checks.
 const NATIVE_DARK: &str = r#"(() => {
-  const lum = c => { const m = (c || '').match(/[\d.]+/g);
+  if (globalThis.__novaDarkCheck) return globalThis.__novaDarkCheck();
+  const A = 'data-nova-native-dark';
+  const lum = e => { const m = (e && getComputedStyle(e).backgroundColor || '').match(/[\d.]+/g);
     return !m || (m[3] !== undefined && +m[3] === 0) ? null : (0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]) / 255; };
-  const d = document.documentElement; if (!d) return;
-  const bg = [d, document.body].map(e => e && lum(getComputedStyle(e).backgroundColor)).find(x => x != null);
-  const cs = getComputedStyle(d).colorScheme || '';
-  const dark = bg != null ? bg < 0.4 : /dark/.test(cs) && (!/light/.test(cs) || matchMedia('(prefers-color-scheme: dark)').matches);
-  if (dark) d.setAttribute('data-nova-native-dark', '');
+  const check = () => {
+    const d = document.documentElement; if (!d) return;
+    let bg = [d, document.body].map(lum).find(x => x != null);
+    if (bg == null) bg = document.elementsFromPoint(innerWidth / 2, innerHeight / 2).map(lum).filter(x => x != null).pop();
+    const cs = getComputedStyle(d).colorScheme || '';
+    const dark = bg != null ? bg < 0.4 : /dark/.test(cs) && (!/light/.test(cs) || matchMedia('(prefers-color-scheme: dark)').matches);
+    if (dark !== d.hasAttribute(A)) dark ? d.setAttribute(A, '') : d.removeAttribute(A);
+  };
+  globalThis.__novaDarkCheck = check;
+  let t = 0;
+  const soon = () => { if (!t) t = setTimeout(() => { t = 0; check(); }, 50); };
+  // our own attribute is skipped, else marking would retrigger the check forever
+  const mo = new MutationObserver(rs => { if (rs.some(r => r.attributeName !== A)) soon(); });
+  const watch = () => [document.documentElement, document.body].forEach(e => e && mo.observe(e, { attributes: true }));
+  watch();
+  addEventListener('load', () => { watch(); check(); });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', check);
+  setTimeout(check, 1000);
+  setTimeout(check, 3000);
+  check();
 })()"#;
 
 thread_local! {

@@ -63,7 +63,8 @@ fn main() -> glib::ExitCode {
                 &[],
             ));
         }
-        // W13b: WebKit's own colour filter (Apple Mail dark mode); feature id is "ColorFilter"
+        // W13b: WebKit's own colour filter (Apple Mail dark mode); feature id is "ColorFilter".
+        // Cost probe only: no native-dark skip, so already-dark pages (Speedometer) get inverted.
         if args0.iter().any(|a| a == "--colorfilter") {
             let s = WebViewExt::settings(&view).unwrap();
             let all = webkit6::Settings::all_features().unwrap();
@@ -138,6 +139,10 @@ const POLL: &str = "JSON.stringify({hash: location.hash, vis: document.visibilit
 const RESULT: &str = "JSON.stringify({score: parseFloat(document.getElementById('result-number').textContent), confidence: document.getElementById('confidence-number').textContent.trim(), valid: document.getElementById('summary').className === 'valid', vis: document.visibilityState, focus: document.hasFocus()})";
 
 fn shot(v: WebView) {
+    // debug: $W_JS (an expression returning a string) is printed before the COMPAT line
+    if let Ok(js) = std::env::var("W_JS") {
+        eval(&v, Box::leak(js.into_boxed_str()), |r| println!("W_JS: {r}"));
+    }
     let v2 = v.clone();
     eval(&v, COMPAT, move |r| {
         println!("{r}");

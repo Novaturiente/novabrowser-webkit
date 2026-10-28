@@ -1,0 +1,18 @@
+<!doctype html>
+<!-- dark mode test: light at load, the page's own dark theme after 1.5 s (class on <html>).
+     The title reports what dark mode decided: "<theme> <marked|filtered>", where marked means
+     our native-dark marker is set (filter skipped). With dark mode on: "light filtered" first,
+     "dark marked" at the end. -->
+<title>late dark</title>
+<style>
+  html { background: #fff; color: #111; font: 32px sans-serif; }
+  html.dark { background: #111; color: #eee; }
+</style>
+<p>Light at load, dark after 1.5 s. With dark mode on this page must end dark, not inverted to light.</p>
+<script>
+  setTimeout(() => document.documentElement.classList.add('dark'), 1500);
+  setInterval(() => {
+    const d = document.documentElement;
+    document.title = (d.classList.contains('dark') ? 'dark ' : 'light ') + (d.hasAttribute('data-nova-native-dark') ? 'marked' : 'filtered');
+  }, 100);
+</script>

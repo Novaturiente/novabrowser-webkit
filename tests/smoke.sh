@@ -164,6 +164,12 @@ grep -q "127.0.0.1:$port" "$XDG_CONFIG_HOME/$app/https_excludes" 2>/dev/null && 
 "$bin" --cmd "dark-toggle" >/dev/null; sleep 0.5
 wait_for 'Dark mode on for 127.0.0.1' 5 && ok "dark-toggle" || fail "dark-toggle: $(q)"
 "$bin" --cmd "tab-close" >/dev/null
+# dark mode on for 127.0.0.1 now: a light page is filtered; once it turns dark itself it is left alone
+cp "$(dirname "$0")/pages/late-dark.html" $srv/
+"$bin" --cmd "open -t http://127.0.0.1:$port/late-dark.html" >/dev/null
+wait_for '"title":"light filtered"' 5 && wait_for '"title":"dark marked"' 5 \
+  && ok "dark mode filters a light page, skips it once it turns dark" || fail "late dark: $(q)"
+"$bin" --cmd "tab-close" >/dev/null
 kill $http
 
 # adblock network rule in the web process extension, against a local server
