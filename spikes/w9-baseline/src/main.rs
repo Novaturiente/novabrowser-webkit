@@ -26,6 +26,7 @@ fn main() -> glib::ExitCode {
     let cssdark = args.iter().any(|a| a == "--cssdark");
     // --compat: ephemeral session, settle 8 s, print COMPAT JSON, PNG to $W10_SHOT, exit
     let compat = args.iter().any(|a| a == "--compat");
+    let args0 = args.clone();
     let args: Vec<String> = args.into_iter().filter(|a| !a.starts_with("--")).collect();
     let url = if bench {
         SPEEDOMETER.to_string()
@@ -60,6 +61,23 @@ fn main() -> glib::ExitCode {
                 SAFARI_JS,
                 webkit6::UserContentInjectedFrames::AllFrames,
                 webkit6::UserScriptInjectionTime::Start,
+                &[],
+                &[],
+            ));
+        }
+        // W13b: WebKit's own colour filter (Apple Mail dark mode), if the feature can be switched on
+        if args0.iter().any(|a| a == "--colorfilter") {
+            let s = WebViewExt::settings(&view).unwrap();
+            let all = webkit6::Settings::all_features().unwrap();
+            let f = (0..all.length()).filter_map(|i| all.get(i)).find(|f| f.identifier().as_deref() == Some("ColorFilterEnabled"));
+            eprintln!("ColorFilterEnabled exposed: {}", f.is_some());
+            if let Some(f) = f {
+                s.set_feature_enabled(&f, true);
+            }
+            view.user_content_manager().unwrap().add_style_sheet(&webkit6::UserStyleSheet::new(
+                ":root { -apple-color-filter: apple-invert-lightness() !important; background: #fff !important; }",
+                webkit6::UserContentInjectedFrames::AllFrames,
+                webkit6::UserStyleLevel::User,
                 &[],
                 &[],
             ));
