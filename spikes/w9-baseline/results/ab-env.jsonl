@@ -1,0 +1,18 @@
+{"round":1,"variant":"base","env":"","load":"3.71 1.92 1.62","out":{"duration_s":45,"result":{"score":17.6,"confidence":"± 1.3","valid":true,"vis":"visible","focus":false}}}
+{"round":1,"variant":"gpu4","env":"WEBKIT_SKIA_GPU_PAINTING_THREADS=4","load":"2.82 1.93 1.63","out":{"duration_s":30,"result":{"score":18.8,"confidence":"± 1.3","valid":true,"vis":"visible","focus":false}}}
+{"round":1,"variant":"cpu8","env":"WEBKIT_SKIA_ENABLE_CPU_RENDERING=1 WEBKIT_SKIA_CPU_PAINTING_THREADS=8","load":"2.41 1.92 1.64","out":{"duration_s":30,"result":{"score":18.4,"confidence":"± 0.88","valid":true,"vis":"visible","focus":false}}}
+{"round":1,"variant":"nodmabuf","env":"WEBKIT_DISABLE_DMABUF_RENDERER=1","load":"2.45 1.99 1.68","out":{"duration_s":35,"result":{"score":13.4,"confidence":"± 0.53","valid":true,"vis":"visible","focus":false}}}
+{"round":1,"variant":"nocomp","env":"WEBKIT_DISABLE_COMPOSITING_MODE=1","load":"2.40 2.01 1.70","out":{"duration_s":25,"result":{"score":18.3,"confidence":"± 1.1","valid":true,"vis":"visible","focus":false}}}
+{"round":1,"variant":"vblank","env":"WEBKIT_FORCE_VBLANK_TIMER=1","load":"2.16 2.00 1.70","out":{"duration_s":25,"result":{"score":19.6,"confidence":"± 1.0","valid":true,"vis":"visible","focus":false}}}
+{"round":2,"variant":"base","env":"","load":"2.30 2.04 1.73","out":{"duration_s":25,"result":{"score":19.2,"confidence":"± 0.89","valid":true,"vis":"visible","focus":false}}}
+{"round":2,"variant":"gpu4","env":"WEBKIT_SKIA_GPU_PAINTING_THREADS=4","load":"2.37 2.07 1.75","out":{"duration_s":25,"result":{"score":19.2,"confidence":"± 0.89","valid":true,"vis":"visible","focus":false}}}
+{"round":2,"variant":"cpu8","env":"WEBKIT_SKIA_ENABLE_CPU_RENDERING=1 WEBKIT_SKIA_CPU_PAINTING_THREADS=8","load":"1.82 1.97 1.72","out":{"duration_s":30,"result":{"score":18.4,"confidence":"± 0.87","valid":true,"vis":"visible","focus":false}}}
+{"round":2,"variant":"nodmabuf","env":"WEBKIT_DISABLE_DMABUF_RENDERER=1","load":"1.84 1.96 1.73","out":{"duration_s":35,"result":{"score":13.2,"confidence":"± 0.49","valid":true,"vis":"visible","focus":false}}}
+{"round":2,"variant":"nocomp","env":"WEBKIT_DISABLE_COMPOSITING_MODE=1","load":"2.32 2.07 1.78","out":{"duration_s":25,"result":{"score":18.2,"confidence":"± 0.86","valid":true,"vis":"visible","focus":false}}}
+{"round":2,"variant":"vblank","env":"WEBKIT_FORCE_VBLANK_TIMER=1","load":"2.16 2.06 1.79","out":{"duration_s":25,"result":{"score":19.5,"confidence":"± 0.85","valid":true,"vis":"visible","focus":false}}}
+{"round":3,"variant":"base","env":"","load":"1.84 1.99 1.77","out":{"duration_s":25,"result":{"score":19.6,"confidence":"± 0.92","valid":true,"vis":"visible","focus":false}}}
+{"round":3,"variant":"gpu4","env":"WEBKIT_SKIA_GPU_PAINTING_THREADS=4","load":"2.34 2.12 1.82","out":{"duration_s":25,"result":{"score":19.2,"confidence":"± 0.89","valid":true,"vis":"visible","focus":false}}}
+{"round":3,"variant":"cpu8","env":"WEBKIT_SKIA_ENABLE_CPU_RENDERING=1 WEBKIT_SKIA_CPU_PAINTING_THREADS=8","load":"1.94 2.05 1.81","out":{"duration_s":30,"result":{"score":18.3,"confidence":"± 0.78","valid":true,"vis":"visible","focus":false}}}
+{"round":3,"variant":"nodmabuf","env":"WEBKIT_DISABLE_DMABUF_RENDERER=1","load":"2.00 2.06 1.83","out":{"duration_s":35,"result":{"score":13.4,"confidence":"± 0.42","valid":true,"vis":"visible","focus":false}}}
+{"round":3,"variant":"nocomp","env":"WEBKIT_DISABLE_COMPOSITING_MODE=1","load":"3.19 2.39 1.95","out":{"duration_s":25,"result":{"score":18.3,"confidence":"± 0.94","valid":true,"vis":"visible","focus":false}}}
+{"round":3,"variant":"vblank","env":"WEBKIT_FORCE_VBLANK_TIMER=1","load":"2.81 2.37 1.96","out":{"duration_s":25,"result":{"score":19.5,"confidence":"± 0.97","valid":true,"vis":"visible","focus":false}}}
