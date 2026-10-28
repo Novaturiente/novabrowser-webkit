@@ -12,5 +12,5 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 webkit-web-process-extension6 = { version = "0.6", features = ["v2_52"] }
 adblock = { version = "0.13.3", default-features = false, features = ["embedded-domain-resolver", "full-regex-handling"] }
-nova-core = { path = "../../novabrowser/nova-core" }
+nova-core = { git = "https://github.com/Novaturiente/nova-core", rev = "40be7614bd1defda653c9e47aa3279ca46dbe57e" }
 serde_json = "1.0.152"

@@ -1,76 +1,76 @@
-//! Per-site dark mode (`colors.webpage.darkmode.*`). WebKit has no Blink-style forced
-//! dark: an inverting user style sheet in every frame, with media re-inverted so photos
-//! and video keep their colours (`policy.images = never` inverts them too).
-//! shortcut: a CSS filter, not Dark Reader (D6); swap in Dark Reader once it is vendored and W13 measures it.
-use crate::config;
+//! Per-site dark mode (`colors.webpage.darkmode.enabled`) with Dark Reader (D6;
+//! `vendor/darkreader`, MIT) in our isolated world. Pages that should be dark get it
+//! as a per-tab user script at document start (swapped at main-frame decide-policy);
+//! a page already loaded is switched live.
+//! shortcut: `darkmode.algorithm` / `policy.images` are Chromium knobs; Dark Reader's own image handling is used.
+use crate::{config, web};
 use std::cell::RefCell;
+use std::collections::HashMap;
 use webkit6::prelude::*;
-use webkit6::{UserContentInjectedFrames, UserStyleLevel, UserStyleSheet, WebView};
+use webkit6::{UserContentInjectedFrames, UserScript, UserScriptInjectionTime, WebView};
+
+const DARK_READER: &str = include_str!("../vendor/darkreader/darkreader.js");
+const ENABLE: &str = "DarkReader.setFetchMethod(window.fetch);\
+ DarkReader.enable({mode: 1, brightness: 100, contrast: 100, sepia: 0});";
 
 thread_local! {
-    /// (view id, css applied) so a reload doesn't stack sheets.
-    static ON: RefCell<Vec<(usize, String)>> = const { RefCell::new(Vec::new()) };
+    /// view id -> its Dark Reader script, while the tab is dark.
+    static ON: RefCell<HashMap<usize, UserScript>> = RefCell::new(HashMap::new());
 }
 
-/// The sheet for the current settings at `url`, None = dark mode off there.
-fn css_for(url: &str) -> Option<String> {
-    let cfg = config::get();
-    if !cfg
-        .get_for("colors.webpage.darkmode.enabled", url)
-        .as_bool()
-        .unwrap_or(false)
-    {
-        return None;
-    }
-    // hue-rotate keeps hues after the invert; brightness-rgb is the plain invert
-    let base = match cfg.str("colors.webpage.darkmode.algorithm").as_str() {
-        "brightness-rgb" => "invert(1)",
-        _ => "invert(0.9) hue-rotate(180deg)",
-    };
-    let media = match cfg.str("colors.webpage.darkmode.policy.images").as_str() {
-        "always" | "never" => "",
-        // smart: re-invert pictures, keep icons/SVG inverted like the text around them
-        _ => "img:not([src$='.svg']), picture, video, canvas, iframe, embed, object, [style*='background-image'] { filter: invert(1) hue-rotate(180deg) !important; }",
-    };
-    Some(format!(
-        ":root {{ filter: {base} !important; background: #fff !important; }} {media}"
-    ))
+fn dark_at(url: &str) -> bool {
+    url.starts_with("http")
+        && config::get()
+            .get_for("colors.webpage.darkmode.enabled", url)
+            .as_bool()
+            .unwrap_or(false)
 }
 
-/// Add, change or drop the sheet on `view` for its current URL.
+/// The current page after a config change or `dark-toggle`: switch it live.
 pub fn apply(view: &WebView) {
     let url = view.uri().map(|u| u.to_string()).unwrap_or_default();
+    let was = ON.with_borrow(|o| o.contains_key(&web::id(view)));
+    let want = dark_at(&url);
     apply_for(view, &url);
-}
-
-/// Same for `url` about to load (decide-policy: set before the page paints).
-pub fn apply_for(view: &WebView, url: &str) {
-    if crate::web::is_internal(url) {
+    if want == was {
         return;
     }
-    let want = css_for(url);
-    let id = crate::web::id(view);
-    let have = ON.with_borrow(|o| o.iter().find(|e| e.0 == id).map(|e| e.1.clone()));
+    let js = if want {
+        format!("if (!globalThis.DarkReader) {{ {DARK_READER} }} {ENABLE}")
+    } else {
+        "globalThis.DarkReader && DarkReader.disable()".to_string()
+    };
+    web::eval_quiet(view, &js);
+}
+
+/// A main-frame navigation to `url` is about to go ahead: install or drop the
+/// document-start script so the page is dark from its first paint.
+pub fn apply_for(view: &WebView, url: &str) {
+    let id = web::id(view);
+    let want = dark_at(url);
+    let have = ON.with_borrow(|o| o.contains_key(&id));
     if want == have {
         return;
     }
     let Some(ucm) = view.user_content_manager() else { return };
-    ucm.remove_all_style_sheets();
-    ON.with_borrow_mut(|o| o.retain(|e| e.0 != id));
-    if let Some(css) = want {
-        ucm.add_style_sheet(&UserStyleSheet::new(
-            &css,
+    if let Some(old) = ON.with_borrow_mut(|o| o.remove(&id)) {
+        ucm.remove_script(&old);
+    }
+    if want {
+        let s = UserScript::for_world(
+            &format!("{DARK_READER}\n{ENABLE}"),
             UserContentInjectedFrames::AllFrames,
-            UserStyleLevel::User,
+            UserScriptInjectionTime::Start,
+            web::WORLD,
             &[],
             &[],
-        ));
-        ON.with_borrow_mut(|o| o.push((id, css)));
+        );
+        ucm.add_script(&s);
+        ON.with_borrow_mut(|o| o.insert(id, s));
     }
 }
 
 /// Tab closed: forget its entry.
 pub fn forget(view: &WebView) {
-    let id = crate::web::id(view);
-    ON.with_borrow_mut(|o| o.retain(|e| e.0 != id));
+    ON.with_borrow_mut(|o| o.remove(&web::id(view)));
 }

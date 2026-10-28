@@ -20,6 +20,10 @@ fn main() -> glib::ExitCode {
     let bench = args.iter().any(|a| a == "--speedometer");
     let safari = args.iter().any(|a| a == "--safari");
     let probe = args.iter().any(|a| a == "--probe");
+    // W13: Dark Reader in world "novabrowser", all frames, like the browser on a dark site
+    let darkreader = args.iter().any(|a| a == "--darkreader");
+    // W13 fallback: the inverting user style sheet (src/darkmode.rs CSS), all frames
+    let cssdark = args.iter().any(|a| a == "--cssdark");
     // --compat: ephemeral session, settle 8 s, print COMPAT JSON, PNG to $W10_SHOT, exit
     let compat = args.iter().any(|a| a == "--compat");
     let args: Vec<String> = args.into_iter().filter(|a| !a.starts_with("--")).collect();
@@ -56,6 +60,29 @@ fn main() -> glib::ExitCode {
                 SAFARI_JS,
                 webkit6::UserContentInjectedFrames::AllFrames,
                 webkit6::UserScriptInjectionTime::Start,
+                &[],
+                &[],
+            ));
+        }
+        if cssdark {
+            view.user_content_manager().unwrap().add_style_sheet(&webkit6::UserStyleSheet::new(
+                ":root { filter: invert(0.9) hue-rotate(180deg) !important; background: #fff !important; } img:not([src$='.svg']), picture, video, canvas, iframe, embed, object, [style*='background-image'] { filter: invert(1) hue-rotate(180deg) !important; }",
+                webkit6::UserContentInjectedFrames::AllFrames,
+                webkit6::UserStyleLevel::User,
+                &[],
+                &[],
+            ));
+        }
+        if darkreader {
+            let js = format!(
+                "{}\nDarkReader.setFetchMethod(window.fetch); DarkReader.enable({{mode: 1, brightness: 100, contrast: 100, sepia: 0}});",
+                include_str!("../../../vendor/darkreader/darkreader.js")
+            );
+            view.user_content_manager().unwrap().add_script(&webkit6::UserScript::for_world(
+                &js,
+                webkit6::UserContentInjectedFrames::AllFrames,
+                webkit6::UserScriptInjectionTime::Start,
+                "novabrowser",
                 &[],
                 &[],
             ));

@@ -36,7 +36,7 @@ in nova-core: 89).
 - [x] W8 session state restore — WebKit session-state blob per tab (S: restore at start)
 - [x] W11 permissions, TLS errors, JS dialogs — S: geolocation prompt, alert prompt, both dropped on tab close; TLS [m]
 - [ ] W12 headless PGO training on novahome
-- [ ] W13 Dark Reader overhead ≤ 3% (Dark Reader not vendored yet: needs your OK for the dependency)
+- [x] W13 Dark Reader overhead, measured 2026-10-29 (`spikes/w9-baseline/ab-darkreader.sh`, Safari identity, 3 interleaved rounds, AC): off 26.7/26.8/26.8, Dark Reader 16.0/15.5/15.6 (**−42%**), inverting CSS 23.3/23.6/23.5 (**−12%**). Both fail the 3% rule; dark mode only runs on sites the user turned dark, so the cost stays on those sites. Decision pending: which one ships.
 - [ ] W14 real-site perf: scroll, idle RSS, startup vs CEF
 
 ## Phase C — nova-core (PLAN.md §5)
@@ -173,7 +173,7 @@ Prompts and permissions
 - [~] 7.18 TLS error → a prompt (not a `nova://` page); yes = `allow_tls_certificate_for_host` + reload [m]
 
 Appearance
-- [~] 7.19 Dark mode per site (S: `dark-toggle`): inverting user style sheet (shortcut until Dark Reader is vendored, W13) [m] look
+- [~] 7.19 Dark mode per site (S: `dark-toggle`): Dark Reader 4.9.134 (vendor/darkreader, MIT) at document start in world `novabrowser`, live switch on toggle; screenshot-checked on Wikipedia. Cost per W13 [m] look
 - [m] 7.20 Spellcheck
 
 ## Phase 8 — Sessions and daily driving
