@@ -64,6 +64,7 @@ Status: `[ ]` todo · `[~]` partial · `[x]` done · `[-]` dropped (reason given
 - [ ] 1.16 Tab close runs beforeunload (`try_close`); closed pages with unload handlers really stop (YouTube audio) — CEF Decisions 2026-10-11
 - [ ] 1.17 Quit with every window closed exits 0, no stray web processes
 - [ ] 1.18 Log file `$XDG_STATE_HOME/novabrowser-webkit/log`
+- [ ] 1.19 Safari identity (D8): `content.user_agent` safari (default) / webkit / custom, per site; `navigator.platform` shim; check page + server see the same UA (httpbin) and W10 sites still sign in
 
 ## Phase 2 — Modal core
 
@@ -239,6 +240,8 @@ Other
 
 Newest first. Settled — don't reopen without new evidence.
 
+- 2026-10-28 — D8 (user): appear as macOS Safari by default (UA + `navigator.platform`); `content.user_agent` keeps `webkit` and custom values, per site. Safari version token followed by hand (27.0 now).
+
 - 2026-10-28 — D1–D7 (user; PLAN.md §2): GTK 4 + WebKitGTK 6.0; chrome in HTML/CSS (user wants full styling freedom, tab bar redesign later — assistant had recommended native GTK); adblock engine in the web-process extension (assistant had recommended content filters; RSS checked in W7); separate dirs + `--import novabrowser`; extract `nova-core` first (assistant had recommended copying first; risk: refactor of the shipping CEF edition); Dark Reader port if ≤ 3% Speedometer cost, else color scheme; ship `webkitgtk-6.0-nova` on the AUR (we own its security updates).
 - 2026-10-28 — Go ahead with the build (user) after `webkitgtk-6.0-nova` matched CEF on Speedometer (27.25 vs 26.3). W10 (site compat) still gates it.
 - 2026-10-28 — Benchmarks and GUI checks run outside the novacode tool sandbox (nested bwrap kills the web process; scores ~15% low inside).
@@ -248,6 +251,8 @@ Newest first. Settled — don't reopen without new evidence.
 ## Session log
 
 Newest first.
+
+- 2026-10-28 (IST, 23:55) — Safari identity spike (`w9-baseline --safari --probe`): httpbin and page JS both report `Macintosh; Intel Mac OS X 10_15_7 … Version/27.0 Safari/605.1.15`, `platform=MacIntel`, `vendor=Apple Computer, Inc.`, no `userAgentData` (like real Safari). Speedometer default 26.7/26.7 vs safari 26.6/26.8. Decision D8 added.
 
 - 2026-10-28 (IST, 23:40) — Decisions D1–D7 taken; PLAN.md rev 2 (nova-core Phase C, Phase W, spikes W12–W14, rules); PROGRESS.md rebuilt as the full feature checklist from the CEF edition. Next: W10.
 - 2026-10-28 (IST, 23:10) — Installed `webkitgtk-6.0-nova` vs CEF novabrowser-bin 0.1.8: 27.25 vs 26.3 (`ab-cef.jsonl`, 4 interleaved rounds, outside the tool sandbox). Earlier in-sandbox numbers ~15% low.

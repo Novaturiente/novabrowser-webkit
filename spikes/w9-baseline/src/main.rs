@@ -7,10 +7,18 @@ use webkit6::prelude::*;
 use webkit6::{LoadEvent, WebView};
 
 const SPEEDOMETER: &str = "https://browserbench.org/Speedometer3.1/";
+/// macOS Safari 27. Real Safari freezes the OS token at 10_15_7.
+const SAFARI_UA: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15";
+/// navigator.platform must match the UA, else scripts see Linux behind a Mac UA.
+const SAFARI_JS: &str = "Object.defineProperty(Navigator.prototype, 'platform', {get: () => 'MacIntel', configurable: true});";
+const PROBE: &str = "JSON.stringify({ua: navigator.userAgent, platform: navigator.platform, vendor: navigator.vendor, uaData: typeof navigator.userAgentData, appVersion: navigator.appVersion})";
 
 fn main() -> glib::ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let bench = args.iter().any(|a| a == "--speedometer");
+    let safari = args.iter().any(|a| a == "--safari");
+    let probe = args.iter().any(|a| a == "--probe");
+    let args: Vec<String> = args.into_iter().filter(|a| !a.starts_with("--")).collect();
     let url = if bench {
         SPEEDOMETER.to_string()
     } else {
@@ -22,6 +30,32 @@ fn main() -> glib::ExitCode {
         .build();
     app.connect_activate(move |app| {
         let view = WebView::new();
+        if safari {
+            if let Some(s) = WebViewExt::settings(&view) {
+                s.set_user_agent(Some(SAFARI_UA));
+            }
+            let ucm = view.user_content_manager().unwrap();
+            ucm.add_script(&webkit6::UserScript::new(
+                SAFARI_JS,
+                webkit6::UserContentInjectedFrames::AllFrames,
+                webkit6::UserScriptInjectionTime::Start,
+                &[],
+                &[],
+            ));
+        }
+        if probe {
+            let done = std::cell::Cell::new(false);
+            view.connect_load_changed(move |v, ev| {
+                if ev == LoadEvent::Finished && !done.replace(true) {
+                    // page JS view + what the server got (httpbin echoes request headers)
+                    eval(v, PROBE, |r| println!("page: {r}"));
+                    eval(v, "document.body.innerText", |r| {
+                        println!("server: {}", r.replace('\n', " "));
+                        std::process::exit(0);
+                    });
+                }
+            });
+        }
         let win = ApplicationWindow::builder()
             .application(app)
             .title("w9-baseline")
