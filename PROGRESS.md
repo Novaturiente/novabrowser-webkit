@@ -5,14 +5,18 @@ Every feature of the CEF edition (novabrowser 0.1.8) is listed below with its
 pass condition. An item is `[x]` only when that condition was checked in a
 session; the evidence goes on the item.
 
-Status: `[ ]` todo · `[~]` partial · `[x]` done · `[-]` dropped (reason given).
+Status: `[ ]` todo · `[~]` partial · `[x]` done · `[-]` dropped (reason given) ·
+`[m]` built, needs a human to check (listed in `docs/manual-test.md`).
 "CEF ref" = where the CEF edition does it (`../novabrowser/novabrowser/src/`).
+Evidence: **S** = `tests/smoke.sh` (42 checks, all pass 2026-10-29 on debug and
+release builds), **U** = unit tests (`cargo test --workspace` here, `cargo test`
+in nova-core: 89).
 
 ## Now
 
-- **Phase:** C (nova-core extraction)
-- **Next action:** C1 — map module dependencies in the CEF edition, create
-  `../novabrowser/nova-core`, move the pure modules (C2).
+- **Phase:** 1–7 built; user's manual pass (`docs/manual-test.md`) next.
+- **Next action:** user runs `docs/manual-test.md`; then Phase 8 checks, C5/C6,
+  CEF edition onto the newer nova-core (it still pins `0433ff0`).
 - **Blockers:** none.
 
 ---
@@ -22,155 +26,155 @@ Status: `[ ]` todo · `[~]` partial · `[x]` done · `[-]` dropped (reason given
 - [x] W9 Speedometer 3.1 — installed `webkitgtk-6.0-nova` 27.25 vs CEF 0.1.8 26.3 (2026-10-28, `spikes/w9-baseline/results/ab-cef.jsonl`); Arch build 18.95 vs own PGO 23.95 in the tool sandbox (`ab-build.jsonl`); env knobs no gain (`ab-env.jsonl`).
 - [~] Own WebKitGTK build — PGO + v3 + ThinLTO, `webkitgtk-6.0-nova` 2.54.2-1 installed on novarch (`spikes/wk-build/`). Left: video/site check (W1, W10), introspection decision (Phase W).
 - [x] W10 sign-in + site compat — **go** (user, 2026-10-29: Google sign-in and ChatGPT "Sign in with Google" work in the spike with `--safari`). HDFC NetBanking shows an "Upgrade browser … older browser version" modal with the stock WebKit UA and **none with the Safari identity** (`results/w10/hdfc-{webkit,safari}.png`; found by the user, missed by the text check, which had no "upgrade browser" pattern and only 600 chars). Screenshot diff safari vs stock: only hdfc (59.5%) is UA-dependent; reddit/youtube/maps/whatsapp diffs are live content. Not tried: Microsoft/Teams, WhatsApp link, Discord, bank login, Meet call — checked again in Phase 8 daily driving. Part 1 done 2026-10-29 (`spikes/w9-baseline/compat.sh`, `results/w10/compat.jsonl` + PNGs, ephemeral session, Safari and stock UA): Google sign-in, Gmail, YouTube, Maps, Meet, ChatGPT, Microsoft login, Outlook, Teams, WhatsApp Web (QR shown, "Download for Mac"), Discord, GitHub, Slack, Figma, HDFC, SBI YONO, Reddit (JS challenge passed), X all load their normal pages; no "unsupported browser" text on any; identical for both UAs. YouTube video loaded but didn't autoplay (no gesture; playback is W1). Left (needs user): real sign-ins — Google, ChatGPT via Google, Microsoft/Teams, WhatsApp QR link, Discord, a bank; Meet call.
-- [ ] W1 Wayland + media (HiDPI, clipboard, `<select>`, IME, VA-API, H.264/AAC, WebRTC)
-- [ ] W2 layout + transparent chrome views + focus hand-off
-- [ ] W3 key capture
-- [ ] W4 world `novabrowser` bridge, all frames
-- [ ] W5 input without CDP (site list)
-- [ ] W6 frame-targeted reply
-- [ ] W7 adblock engine in extension (score, YouTube, RSS per process)
-- [ ] W8 session state restore
-- [ ] W11 permissions, TLS errors, JS dialogs
+- [m] W1 Wayland + media (HiDPI, clipboard, `<select>`, IME, VA-API, H.264/AAC, WebRTC)
+- [x] W2 layout + transparent chrome views + focus hand-off — tab bar, palette, keyhint, popups are transparent `nova://ui/*` views over a GtkStack (screenshot 2026-10-29); focus hand-off [m]
+- [x] W3 key capture — capture-phase `EventControllerKey` on the window; hint mode driven from it (screenshot of labels 2026-10-29)
+- [~] W4 world `novabrowser` bridge — hints, focus reports, passwords, adblock scan run there (S: hints, adblock); all frames only for focus reports; passwords top frame only
+- [-] W5 input without CDP — no trusted input in WebKit; hints use synthetic pointer+mouse events + `click()`, `fake-key` JS events + editing commands; site list → [m]
+- [-] W6 frame-targeted reply — not available from the UI process; passwords fill the top frame only (shortcut in `passwords.rs`)
+- [~] W7 adblock engine in extension — works (S: listed request blocked, others pass); score, YouTube, RSS per process [m]
+- [x] W8 session state restore — WebKit session-state blob per tab (S: restore at start)
+- [x] W11 permissions, TLS errors, JS dialogs — S: geolocation prompt, alert prompt, both dropped on tab close; TLS [m]
 - [ ] W12 headless PGO training on novahome
-- [ ] W13 Dark Reader overhead ≤ 3%
+- [ ] W13 Dark Reader overhead ≤ 3% (Dark Reader not vendored yet: needs your OK for the dependency)
 - [ ] W14 real-site perf: scroll, idle RSS, startup vs CEF
 
 ## Phase C — nova-core (PLAN.md §5)
 
-- [ ] C1 repo `../novabrowser/nova-core` + GitHub `Novaturiente/nova-core`, crate builds
-- [ ] C2 pure modules moved (urlmatch, keys, config + config.js, settings core, marks, import, theme, history, session format, password backends, net pure, downloads pure, aria2 RPC, spawn, hint labels, command parser, permissions logic, adblock lists/engine build, ipc server, profiles, welcome, settings page, write_atomic, dirs) — all 92 CEF tests pass in nova-core
-- [ ] C3 `Host` seam trait; modules with UI calls moved
-- [ ] C4 CEF edition on nova-core: `cargo test`, `tests/smoke.sh`, `makepkg` of `packaging/PKGBUILD` and `release.sh` dry run all pass
-- [ ] C5 audit fixes landed in nova-core: A1 hint chars < 2 loop, A2 QuickJS limits, A3 prompt grace period, A4 aria2 secret/port race/cookie redirects, A5 hint `{hint-url}` injection, A6 torrent cancel path, A9 history rollback, A10 adblock offline cache + curl flags, B5 history churn, B6/B7 per-request costs, C2 marks wipe, C3 `tab-close` count, C4 small items
+- [x] C1 repo `../novabrowser/nova-core` + GitHub `Novaturiente/nova-core`, crate builds
+- [~] C2 moved: urlmatch, keys (+ GDK converter), config + config.js, settings, marks, import, theme, history, session, password backends, net policy, aria2 RPC, spawn/userscripts, hint labels, command parser, permission setting names, profiles, welcome, settings page, write_atomic, dirs (U: 89 in nova-core). Not moved (per-edition copies): downloads list/page, permission decide/queue, adblock list fetch/engine build, ipc server
+- [x] C3 `Host` seam trait (`nova_core::host`); CEF `CefHost`, WebKit `WebKitHost`
+- [~] C4 CEF edition on nova-core `0433ff0` (branch `nova-core` in `.worktrees/cef`): `cargo test` 16, `tests/smoke.sh` pass (2026-10-28); `makepkg --nodeps` of `packaging/PKGBUILD` from that branch built `novabrowser-git r135.89185c0` incl. its `check()` (2026-10-29). Left: `release.sh` dry run; move CEF to the newer nova-core (needs `run_in_tab`/`show_text` in `CefHost`)
+- [~] C5 audit fixes: A1 (hint chars < 2, nova-core `hints`, U), A3 (prompt grace 400 ms, WebKit `permissions`, U), A5 (`{hint-url}` stays one token, U), A7 (popups need a gesture, WebKit). Left: A2, A4 (secret still on aria2c argv), A6, A9, A10, B5–B7, C2–C4, and porting A3/A5 into the CEF edition
 - [ ] C6 CEF edition session log + release note for the refactor
 
 ## Phase 1 — Skeleton
 
-- [ ] 1.1 GtkApplication `novabrowser-webkit`, Wayland app id + X11 WM_CLASS, window 1200×800, closes/resizes/maximises — CEF ref `window.rs`
-- [ ] 1.2 `novabrowser-webkit <url>`: bare host → `https://`; `://`, `about:`, `data:` pass through — `main.rs start_url`
-- [ ] 1.3 Tabs in a GtkStack, one WebView per loaded tab; switching keeps page state; hidden tab reports `visibilityState=hidden`
-- [ ] 1.4 Chrome views on `nova://ui/*` (tab bar first), transparent, own WebContext; message handler `nova` only there; `ready` handshake
-- [ ] 1.5 Tab bar: label, favicon, active, loading, 2 px progress line, crashed, pinned, asleep markers; click switches, middle-click closes
-- [ ] 1.6 `tabs.position` top/bottom/left/right, `tabs.width` px or %, `tabs.show` never/always/multiple, re-layout on resize
-- [ ] 1.7 Window title from `window.title_format` (`[profile] ` prefix)
-- [ ] 1.8 URL, title, load progress, back/forward flags from WebView signals
-- [ ] 1.9 Favicons (`notify::favicon`) in the tab bar
-- [ ] 1.10 `target=_blank` / `window.open` → tab with opener kept (`create` + `related-view`); background disposition → background tab
-- [ ] 1.11 Middle / Ctrl-click link → background tab (`decide-policy` NEW_WINDOW, mouse button)
-- [ ] 1.12 Popups without a user gesture refused (CEF audit A7)
-- [ ] 1.13 `nova://` scheme secure + local; page token checked on every action; only `nova://` views may act
-- [ ] 1.14 Crash page on `web-process-terminated` (crashed / out of memory / killed) with URL, `r` reloads, other tabs keep running — check: `kill -9` the web process
-- [ ] 1.15 Hang prompt "This page isn't responding. Kill it? [y]es [n]o" on `is-web-process-responsive` false → `terminate_web_process`; dropped on recovery
-- [ ] 1.16 Tab close runs beforeunload (`try_close`); closed pages with unload handlers really stop (YouTube audio) — CEF Decisions 2026-10-11
-- [ ] 1.17 Quit with every window closed exits 0, no stray web processes
-- [ ] 1.18 Log file `$XDG_STATE_HOME/novabrowser-webkit/log`
-- [ ] 1.19 Safari identity (D8): `content.user_agent` safari (default) / webkit / custom, per site; `navigator.platform` shim; check page + server see the same UA (httpbin) and W10 sites still sign in
+- [x] 1.1 GtkApplication, Wayland app id + X11 WM_CLASS `novabrowser-webkit` (prgname, no GApplication id: our socket keeps one instance per profile), window 1200×800 — S starts/quits; [m] resize/maximise
+- [x] 1.2 `<url>`: bare host → `https://`; `://`, `about:`, `data:` pass through — `main.rs start_url`; S launches with `data:` URLs
+- [~] 1.3 Tabs in a GtkStack, one WebView per loaded tab (S: tabs, switching); [m] `visibilityState=hidden` for hidden tabs
+- [x] 1.4 Chrome views on `nova://ui/*`, transparent, own WebContext + ephemeral session; `nova` handler only there; `ready` handshake; reloaded after their web process dies (S: works after kill -9)
+- [m] 1.5 Tab bar: label, favicon, active, loading, progress line, crashed, pinned, asleep markers; click switches, middle-click closes
+- [m] 1.6 `tabs.position`, `tabs.width`, `tabs.show`, re-layout on resize
+- [m] 1.7 Window title from `window.title_format` (`[profile] ` prefix)
+- [x] 1.8 URL, title, load progress, back/forward from WebView signals (S: titles/URLs in `--query state`, back/forward)
+- [m] 1.9 Favicons in the tab bar
+- [m] 1.10 `target=_blank` / `window.open` → tab with opener kept (`create` + `related-view`)
+- [m] 1.11 Middle / Ctrl-click link → background tab
+- [m] 1.12 Popups without a user gesture refused ("Blocked a popup…")
+- [x] 1.13 `nova://` secure + local + CORS; page token checked on every action (`tabview::internal_action`); only `nova://` main frames may act (S: `:history` page opens)
+- [x] 1.14 Crash page on `web-process-terminated` with URL, reload brings it back, other tabs keep running (S: kill -9 every web process, crash page, `reload`)
+- [m] 1.15 Hang prompt on `is-web-process-responsive` false → `terminate_web_process`; dropped on recovery
+- [m] 1.16 Tab close runs beforeunload (`try_close`); closed pages really stop (YouTube audio)
+- [x] 1.17 Quit exits 0 (S, twice)
+- [-] 1.18 Log file — WebKit has no log file of its own; we log to stderr (journal when started by the desktop). Add a file if daily driving needs one
+- [m] 1.19 Safari identity (D8) per site; httpbin check
 
 ## Phase 2 — Modal core
 
-- [ ] 2.1 Capture-phase key controller; `key_from_gdk(keyval, state)` with tests replacing the `key_from_cef` cases
-- [ ] 2.2 Modes normal / insert / passthrough / command / hint / prompt; mode badge in the tab bar
-- [ ] 2.3 qutebrowser key notation (`<Ctrl-[>`, `<Space>tg`, `gT`), trie, pending keys shown, Escape clears, counts (`5j`, `3J`)
-- [ ] 2.4 `forward_unbound_keys=auto`: unbound plain chars eaten in normal mode, other keys pass
-- [ ] 2.5 Insert/passthrough check only single-key `mode-leave` binds; `Ctrl-v` passthrough, `Shift-Escape` leaves
-- [ ] 2.6 Auto insert mode on focusing an editable (all frames); normal again on blur/navigation
-- [ ] 2.7 Default keymap (`bindings.rs`, 78 keys); test: no duplicates, every command exists
-- [ ] 2.8 Which-key popup 350 ms after a prefix (`g`, `;`, `<Space>`…), `colors.keyhint.*`, `fonts.keyhint`
-- [ ] 2.9 `F1` / `:bindings [filter]` with "Your bindings" and per-mode sections
-- [ ] 2.10 Command registry, flags, `;;` chaining, aliases expanded before the split, placeholders `{url}` `{url:host}` `{url:yank}` `{title}` `{clipboard}` `{primary}`
-- [ ] 2.11 Unknown command → error in the tab bar; messages clear after `messages.timeout`
-- [ ] 2.12 `open [-t|-b|-w|-p] [url]`, `url.auto_search`, `url.searchengines` (`DEFAULT`, keywords like `g rust`), `url.default_page`, `url.start_pages`
-- [ ] 2.13 `back` / `forward` (+count) through the back/forward list, page can't trap them (CEF audit A8); "At beginning/end of history."
-- [ ] 2.14 `reload [-f]`, `stop`
-- [ ] 2.15 `scroll up|down|left|right|top|bottom` (40 px × count), `scroll-page x y`, `scroll-to-perc [N] [-x]`, `scrolling.smooth`; moves the active inner scroller
-- [ ] 2.16 `zoom-in`, `zoom-out`, `zoom [N|N%]`, `zoom.levels`; per-site zoom kept across restarts (`zoom.json`)
-- [ ] 2.17 `tab-next`, `tab-prev`, `tab-focus [last|N]` (negative = from end), `tab-move [+|-|N]`, `tab-close [-f]` with count, `tab-only`, `tab-clone [-b]`, `tab-pin`, `tab-mute`, `undo`
-- [ ] 2.18 `mode-enter`, `mode-leave`, `cmd-set-text [-s] [-r] [-a]`, `message-info|warning|error`, `nop`, `paste` (`Ctrl-Shift-v` in normal + insert)
-- [ ] 2.19 `tabs.last_close` close / blank / startpage / default-page / ignore
-- [ ] 2.20 Pinned tabs first, `tabs.title.format_pinned`, focused pinned tab uses the normal format, `d` / middle-click refuse ("Tab is pinned!…"), `tab-only` keeps them
-- [ ] 2.21 Key → command < 2 ms (timing log). Exit: user drives HN without the mouse
+- [x] 2.1 Capture-phase key controller; `key_from_gdk` with tests (U: `keys::tests::key_from_gdk_cases`)
+- [~] 2.2 Modes normal / insert / passthrough / command / hint / prompt (S: hint, prompt); [m] badge look
+- [x] 2.3 Key notation, trie, counts (U: 20+ `keys::tests`); [m] pending keys shown
+- [m] 2.4 `forward_unbound_keys=auto`
+- [m] 2.5 Insert/passthrough single-key binds, `Ctrl-v`, `Shift-Escape`
+- [m] 2.6 Auto insert mode on focusing an editable (all frames)
+- [x] 2.7 Default keymap; no duplicates, every command exists (U: `bindings::tests::core_is_valid_and_has_no_duplicates`)
+- [m] 2.8 Which-key popup after a prefix
+- [m] 2.9 `F1` / `:bindings [filter]`
+- [x] 2.10 Registry, flags, `;;`, aliases before the split (U: `commands::tests`); `{clipboard}` `{primary}` [m]
+- [x] 2.11 Unknown command → error in the tab bar (S); [m] `messages.timeout`
+- [~] 2.12 `open [-t|-w] [url]` (S); [m] `-b`, `-p`, search engines, start pages
+- [x] 2.13 `back` / `forward` (S)
+- [m] 2.14 `reload [-f]`, `stop`
+- [m] 2.15 `scroll*`, inner scrollers, `scrolling.smooth`
+- [~] 2.16 `zoom` (S); per-site `zoom.json` [m]
+- [~] 2.17 Tab commands: `tab-close`, `tab-pin`, `undo` (S); [m] the rest
+- [~] 2.18 `mode-leave`, `message-info` (S); [m] `cmd-set-text`, `paste`
+- [m] 2.19 `tabs.last_close`
+- [x] 2.20 Pinned tab refuses `tab-close` ("Tab is pinned!…", S); [m] order + title formats
+- [m] 2.21 Key → command < 2 ms (`NOVA_KEY_TIMING=1`); HN without a mouse
 
 ## Phase 3 — Palette, completion, history
 
-- [ ] 3.1 Floating palette for `o` / `O` / `:` with hidden prefixes (`:open [-t|-b|-w] `, `:bindings `, `:profile-new `) and placeholders ("Search or enter address…", "Open in new tab…", …); empty-Enter rules as in the CEF edition
-- [ ] 3.2 Blurred page backdrop behind the palette (`get_snapshot`); `/` and `?` as a thin strip so the page stays visible
-- [ ] 3.3 Readline keys Ctrl-a/e/b/f/u/k/w/y/h, Alt-b/f/d; kills keep the leading `:`
-- [ ] 3.4 Tab / Shift-Tab cycle; Up/Down move in the list when shown, else command history; Ctrl-p / Ctrl-n always history
-- [ ] 3.5 Completion sources: commands, quickmarks, bookmarks, history, profiles, bindings; `completion.open_categories` order; `completion.height`
-- [ ] 3.6 Ranking typed → visits → recency; `open` typed in the palette counts as typed; bookmarked URLs not repeated under History
-- [ ] 3.7 History db `history.sqlite` (FTS5 trigram, `typed` column + migration, WAL) on its own thread; superseded queries skipped
-- [ ] 3.8 `search_100k_rows_under_16ms` passes; live completion never > 16 ms on a 100k-row profile
-- [ ] 3.9 Command history persisted (last 1000), prefix navigation
-- [ ] 3.10 `:history [words]` / `Sh` on `nova://history`: newest 500 by day, search, delete row, "Delete shown"
+- [m] 3.1 Floating palette for `o` / `O` / `:`
+- [m] 3.2 Blurred snapshot backdrop; `/` `?` thin strip
+- [m] 3.3 Readline keys
+- [m] 3.4 Tab / Shift-Tab, Up/Down, Ctrl-p/n
+- [x] 3.5 Completion sources + order (U: `completion::tests`); [m] look
+- [m] 3.6 Ranking typed → visits → recency
+- [x] 3.7 History db on its own thread (U: `history::tests`, migration test)
+- [x] 3.8 `search_100k_rows_under_16ms` (U)
+- [x] 3.9 Command history prefix navigation (U: `completion::tests::history_prefix_navigation`)
+- [~] 3.10 `:history` page opens (S); [m] search, delete
 
 ## Phase 4 — Hints, find, yank, clipboard
 
-- [ ] 4.1 `hint [-r] [-f] [group] [target] [args]`; groups from `hints.selectors`, default `all`; flags may follow the group
-- [ ] 4.2 Collection: same-origin iframes, open shadow roots, only an open modal `<dialog>`, visibility rules from qutebrowser `webelem.js`
-- [ ] 4.3 Labels `_hint_scattered`, `hints.chars`, `hints.uppercase`, `hints.min_chars`; closed shadow root, top-layer popover, `color-scheme: only light`; `fonts.hints`, `colors.hints.*`, `hints.border/radius/padding`
-- [ ] 4.4 Typing filters, Backspace, unique prefix auto-follows, "No matching hint." leaves; `-r` rapid; `-f` / `gi` focus first input → insert mode
-- [ ] 4.5 Targets normal/current, tab, tab-bg, tab-fg, window, hover, yank, yank-primary, fill, spawn (`{hint-url}`), run
-- [ ] 4.6 Exit: `f`, `F`, `;y`, `;o`, `hint links spawn mpv {hint-url}` on GitHub, Jira, YouTube
-- [ ] 4.7 Find `/` `?` incremental, smart case, `n` / `N`, match count in the tab bar
-- [ ] 4.8 `yank url|pretty-url|title|domain|selection|inline <text> [-s]`, `yy` `yt` `yd`…, "Yanked …" messages
-- [ ] 4.9 Clipboard + primary through GdkClipboard (no wl-copy/xclip); `pp` / `Pp`; reads capped 1 MiB / 2 s
+- [x] 4.1 `hint [-r] [-f] [group] [target] [args]` enters hint mode (S)
+- [m] 4.2 Collection rules (iframes, shadow roots, dialogs)
+- [x] 4.3 Labels `_hint_scattered` (U: `hints::tests`); closed shadow root drawing (screenshot 2026-10-29); [m] colours/fonts settings
+- [m] 4.4 Filtering, Backspace, auto-follow, `-r`, `-f` / `gi`
+- [~] 4.5 Targets: `run` URL stays one token (U); [m] all targets
+- [m] 4.6 Exit: `f`, `F`, `;y`, `;o`, spawn mpv on GitHub, Jira, YouTube
+- [x] 4.7 Find `/` incremental, smart case (U: `find_options`), match count / not found messages (S); [m] `n` / `N`
+- [m] 4.8 `yank …` (not in S: it would overwrite your clipboard)
+- [m] 4.9 GdkClipboard, `pp` / `Pp`, 1 MiB / 2 s caps
 
 ## Phase 5 — Config, settings, themes
 
-- [ ] 5.1 `~/.config/novabrowser-webkit/config.ts` → oxc → QuickJS; relative `.ts` imports; `c`, `bind`, `unbind`, `alias`, `pattern`, `readLines`, `configDir`, `profile`
-- [ ] 5.2 Errors name the config.ts line; broken file at start → defaults + message; on `:config-source` → old config kept
-- [ ] 5.3 `--check-config`: ok / error, keys ignored per site
-- [ ] 5.4 `:set [-t] [-u pattern] name [value]`, `config-cycle`, `config-source`; `autoconfig.json`; precedence `:set -t` → config.ts → autoconfig → preset → default; per-profile autoconfig over the default profile's
-- [ ] 5.5 Per-site `pattern()` (`get_for`); per-site list updated (cookies global only)
-- [ ] 5.6 Schema: drop `chromium.*`, `content.canvas_reading`, `content.webrtc_ip_handling_policy`, `content.persistent_storage`, `content.register_protocol_handler`, `tabs.freeze_after`; add `webkit.hardware_acceleration`, `webkit.site_specific_quirks`, `webkit.features`, `webkit.itp`, `content.user_agent` (per site), `content.storage_access`
-- [ ] 5.7 Themes dark / light / tokyo-night / catppuccin; every `colors.*` / `fonts.*` reaches the chrome views and `nova://` pages; test: every colour setting covered by every preset
-- [ ] 5.8 Web content: `fonts.web.family.*`, `fonts.web.size.*`, `colors.webpage.bg`, `colors.webpage.preferred_color_scheme`
-- [ ] 5.9 `:settings` / `Ss` on `nova://settings`: 17 rows, rows set in config.ts locked, theme warning
-- [ ] 5.10 Exit: the user's config.ts (minus `chromium.*`) loads
+- [x] 5.1 `config.ts` → oxc → QuickJS (U: `config::tests::loads_settings_patterns_binds`)
+- [x] 5.2 Errors name the config.ts line (U: `errors_name_the_config_line`); [m] broken file at start
+- [m] 5.3 `--check-config`
+- [x] 5.4 `:set` persists to `autoconfig.json` (S), validation (U); [m] precedence with config.ts
+- [x] 5.5 Per-site `pattern()` (U); `content.user_agent` added per site
+- [~] 5.6 Schema: added `webkit.hardware_acceleration`, `webkit.site_specific_quirks`, `webkit.itp`, `content.user_agent`, `downloads.backend=webkit`. Left: dropping `chromium.*` etc. from the WebKit schema (shared table; gate per edition)
+- [x] 5.7 Every colour setting covered by every preset (U: `theme::preset_tests`); [m] reaches chrome views and pages
+- [m] 5.8 `fonts.web.*`, `colors.webpage.bg`; `preferred_color_scheme` not wired yet
+- [m] 5.9 `:settings` page
+- [m] 5.10 Exit: your config.ts loads
 
 ## Phase 6 — External tools
 
-- [ ] 6.1 `spawn [-u] [-o] cmd args`; errors show the last stderr line; stdout+stderr read together (no deadlock)
-- [ ] 6.2 Userscripts from `<config>/userscripts/` then `<data>/userscripts/`; env `QUTE_USERSCRIPT`, `QUTE_MODE`, `QUTE_URL`, `QUTE_TITLE`, `QUTE_SELECTED_TEXT`, `QUTE_HTML`, `QUTE_TEXT`, `QUTE_FIFO`, `QUTE_CONFIG_DIR`, `QUTE_DATA_DIR`, `QUTE_DOWNLOAD_DIR`, `QUTE_COMMANDLINE_TEXT`, `QUTE_VERSION`, `QUTE_COUNT`
-- [ ] 6.3 `QUTE_FIFO` lines run in the tab that started the script; tab gone → "userscript tab closed, dropped: …"; temp dir removed
-- [ ] 6.4 `spawn -o` output in a text tab
-- [ ] 6.5 `fake-key <keys>` (JS events + editing commands); limits from W5 written in docs
-- [ ] 6.6 `insert-text <text>` (`InsertText` editing command)
-- [ ] 6.7 IPC socket `<data>/ipc` (0600): `url <text>` never parsed as commands, `cmd <line>`, `query state` JSON; refused while quitting
-- [ ] 6.8 `--cmd`, `--query [state]`; second launch hands its URL over; no URL → new window; no instance → exit 1
-- [ ] 6.9 `dark-toggle` (`<Space>td`) writes `darkmode_excludes` atomically
+- [x] 6.1 `spawn [-u] [-o]`; output tab (S); [m] stderr line on failure
+- [x] 6.2 Userscripts from `<config>/userscripts/` with `QUTE_*` env (S: `QUTE_TITLE` echoed back)
+- [x] 6.3 `QUTE_FIFO` lines run in the starting tab (S); temp dir removal (U: fifo test)
+- [x] 6.4 `spawn -o` output in a text tab (S)
+- [m] 6.5 `fake-key` (JS events + editing commands; limits in docs)
+- [m] 6.6 `insert-text`
+- [x] 6.7 IPC socket 0600, `url`, `cmd`, `query state` (S)
+- [x] 6.8 `--cmd`, `--query`, second launch hands its URL over (S); [m] no URL → new window; no instance → exit 1
+- [x] 6.9 `dark-toggle` writes `darkmode_excludes` (S)
 
 ## Phase 7 — Privacy, blocking, prompts
 
 Adblock (D3, engine in the extension)
-- [ ] 7.1 Extension `libnova_extension.so` loaded (`set_web_process_extensions_directory`), gets config + engine path over user messages
-- [ ] 7.2 Network blocking in `send-request` (main frame never blocked), `content.blocking.enabled` per site, `content.blocking.method`, `content.blocking.whitelist`
-- [ ] 7.3 Lists `content.blocking.adblock.lists`: background fetch (curl, size cap, `--proto-redir`), cache `engine.dat` + `lists.txt`, refresh > 24 h, hourly check, failed list keeps its old copy, offline doesn't mark the cache fresh (CEF audit A10), `:adblock-update`, "adblock: N lists" messages
-- [ ] 7.4 Cosmetic per-site CSS + uBO scriptlets (`adblock-resources.json`) injected in `window-object-cleared` before page scripts, main world, CSP-exempt stylesheet
-- [ ] 7.5 Generic hiding: `adblock-scan.js` in world `novabrowser`, class/id batches every 100 ms → `hidden_class_id_selectors`
-- [ ] 7.6 Exit: adblock-tester.com 100/100; no ads on 3 YouTube videos; Speedometer cost of the extension ≤ 3%; RSS per web process recorded
+- [x] 7.1 Extension `libnovabrowser_webkit_ext.so` (workspace member `ext/`) loaded from `$NOVA_WEBKIT_EXT_DIR`, next to the binary or `/usr/lib/novabrowser-webkit`; config + engine path via init data and `cfg` messages (S: "extension found", blocking works)
+- [x] 7.2 Blocking in `send-request`, main frame never blocked (UI sends `nav` before each main-frame navigation), per-site `content.blocking.enabled`, whitelist (S + U: `engine_from_cfg_blocks`)
+- [~] 7.3 Lists fetched with curl, cached `engine.dat` + `lists.txt`, `:adblock-update`, "adblock: N lists" (S). Left: size cap, `--proto-redir`, A10 offline rule
+- [x] 7.4 Cosmetic CSS + scriptlets: per-tab user script swapped at main-frame `decide-policy`, hostname-guarded, constructable stylesheet (U: `cosmetic_and_generic`); [m] on real sites
+- [x] 7.5 Generic hiding: `adblock-scan.js` in our world → `hidden_class_id_selectors` (U); [m] on real sites
+- [m] 7.6 Exit: adblock-tester, YouTube ads, Speedometer cost, RSS per web process
 
 HTTPS-only
-- [ ] 7.7 Main-frame `http://` GET/HEAD → `https://`; subresources and redirect targets upgraded in the extension
-- [ ] 7.8 Exempt: localhost, dotless hosts, `.local .lan .internal .home .arpa .ts.net`, RFC1918, 100.64/10, link-local, IPv6 loopback/ULA/link-local; `https_excludes` file; `https-toggle` (`<Space>th`)
-- [ ] 7.9 Failed upgraded load → "<host>: https failed (why). HTTPS-only upgraded it; :https-toggle (<Space>th) allows http here"; WebKit `HTTPSByDefault` off so excludes stick
+- [~] 7.7 Main frame upgrade in `decide-policy`, subresources + redirects in the extension (U: `https_upgrade_rules`); [m] on a real http site
+- [x] 7.8 Local exemptions (U), `https_excludes` + `https-toggle` (S)
+- [m] 7.9 Failed upgraded load message
 
 Cookies, headers, network privacy
-- [ ] 7.10 `content.cookies.accept` all / no-3rdparty / never via CookieManager; ITP on (`webkit.itp`); per-site cookie patterns reported as ignored
-- [ ] 7.11 `content.headers.custom` (e.g. `Sec-GPC`), `content.headers.do_not_track` in `send-request`
-- [ ] 7.12 Accept-Language (`set_preferred_languages`), autoplay (`content.autoplay` → WebsitePolicies), hyperlink auditing off, DNS prefetch off
-- [ ] 7.13 Idle network capture on `about:blank` shows no third-party hosts
+- [m] 7.10 `content.cookies.accept` via CookieManager, ITP
+- [m] 7.11 Custom headers / DNT in `send-request` (page-level values: shortcut, see ext)
+- [~] 7.12 Accept-Language, autoplay via `media_playback_requires_user_gesture`; hyperlink auditing / DNS prefetch setters are deprecated no-ops in 2.50+ [m]
+- [ ] 7.13 Idle network capture
 
 Prompts and permissions
-- [ ] 7.14 Tab-bar prompt `[y]es [n]o [A]lways [N]ever`, Escape = no, per-tab queue, prompt mode focuses the tab bar; grace period so typed keys can't answer (CEF audit A3)
-- [ ] 7.15 Types: notifications, geolocation, mic, camera, screen share, clipboard read, pointer lock, storage access, device info (follows media answer); media-key-system + missing-plugins denied (message names `gst-libav`)
-- [ ] 7.16 `content.*` settings decide true/false/ask per origin; saved A/N in `permissions.json` win over config.ts; notifications restored at start (`initialize_notification_permissions`)
-- [ ] 7.17 JS alert / confirm / prompt (typed answer) / beforeunload (leave/reload) in the tab bar via `script-dialog`; dialogs dropped on navigation
-- [ ] 7.18 TLS error → own `nova://` page; proceed = `allow_tls_certificate_for_host` + reload; subresource TLS errors fail
+- [x] 7.14 Tab-bar prompt queue, Escape = no, grace period 400 ms (U), dropped when its tab closes (S)
+- [~] 7.15 geolocation prompt (S); notifications, mic, camera, screen, clipboard, pointer lock, storage access, device info [m]; missing-plugins message not built
+- [x] 7.16 true/false/ask per origin, saved A/N in `permissions.json`, saved notification answers given to WebKit at start
+- [~] 7.17 alert in the prompt (S); confirm / prompt / beforeunload [m]
+- [~] 7.18 TLS error → a prompt (not a `nova://` page); yes = `allow_tls_certificate_for_host` + reload [m]
 
 Appearance
-- [ ] 7.19 Dark mode: Dark Reader engine in world `novabrowser` if W13 ≤ 3%, else color scheme + injected CSS; `colors.webpage.darkmode.enabled` per site; `darkmode_excludes`; internal pages and hint labels unaffected
-- [ ] 7.20 Spellcheck (`spellcheck.languages`, Enchant dictionaries)
+- [~] 7.19 Dark mode per site (S: `dark-toggle`): inverting user style sheet (shortcut until Dark Reader is vendored, W13) [m] look
+- [m] 7.20 Spellcheck
 
 ## Phase 8 — Sessions and daily driving
 
@@ -206,12 +210,19 @@ Other
 - [ ] 8.23 `--import [name|dir|file]`: Chrome, Chromium, Helium, Brave, Vivaldi, Edge, Firefox, Zen, LibreWolf, Floorp, qutebrowser (history, bookmarks, quickmarks, session) + `novabrowser` (CEF edition: history, marks, sessions, permissions, downloads, config files, zoom); idempotent
 - [ ] 8.24 Exit: one week as the only browser, problems logged here
 
+Phase 8 note (2026-10-29): code for most of 8.1–8.23 is in (sessions, hibernation,
+windows, tab-give, tab menu, marks, downloads + aria2, context menu, inspector,
+fullscreen, profiles, private windows, welcome, import). S already covers
+session-save names + path escape, `quit -s`, restore at start, `undo`, `open -w` /
+`:close`, quickmark add/load, `bookmark-add`, WebKit download + unique names,
+aria2 downloads. Items stay `[ ]` until each pass condition is checked.
+
 ## Phase 9 — Packaging and docs
 
-- [ ] 9.1 Cargo workspace: app + `extension/` cdylib; `[profile.release]` with LTO + strip (CEF audit C1)
+- [~] 9.1 Cargo workspace: app + `ext/` cdylib; `[profile.release]` thin LTO + strip; release build has no warnings (2026-10-29)
 - [ ] 9.2 AUR `novabrowser-webkit` (source) + `novabrowser-webkit-bin`: depends `libwebkitgtk-6.0.so`, `gtk4`, `gst-plugins-good`; optdepends `gst-libav`, `gst-plugin-va`, `aria2`, `rbw`, `pass`, `bw`; extension under `/usr/lib/novabrowser-webkit/`
 - [ ] 9.3 `.desktop`, icons, `xdg-settings` default-browser instructions
-- [ ] 9.4 `tests/smoke.sh` over IPC (start, `open -t`, hand-over, tab-close, `:set` persisted, `quit -s` exits 0, session saved, no GLib CRITICAL)
+- [x] 9.4 `tests/smoke.sh` over IPC — 42 checks (start, tabs, hand-over, hints, find, prompts, crash, spawn/userscripts, sessions, marks, windows, downloads, toggles, adblock, quit, restore), all pass 2026-10-29
 - [ ] 9.5 Docs ported from `../novabrowser/novabrowser/docs/` (getting-started, keybindings, commands, configuration, settings, tabs-sessions-profiles, passwords, downloads, privacy, scripting, migrating, building, troubleshooting) with WebKit differences
 - [ ] 9.6 README with install, keys, differences from the CEF edition
 
@@ -225,6 +236,10 @@ Other
 - [ ] 10.6 Save / update prompt after submit (`WebFormManager::will-submit-form` + JS fallback); split logins remember page-1 user; same password → no prompt; newer prompt replaces older; expiry 5 min
 - [ ] 10.7 rbw add/edit through novabrowser as `$VISUAL` (secret in env, never argv); locked vault asks before unlocking
 - [ ] 10.8 Exit: single-page, split, iframe, TOTP, sign-up pages; save + update land in the vault; cross-site iframe gets nothing
+
+Phase 10 note (2026-10-29): backends in nova-core (U: 3 tests); WebKit UI in
+`src/passwords.rs` — top frame only (W6), JS submit detection only (no
+WebFormManager yet).
 
 ## Phase W — webkitgtk-6.0-nova distribution (D7)
 
@@ -240,6 +255,8 @@ Other
 
 Newest first. Settled — don't reopen without new evidence.
 
+- 2026-10-29 — Prompts over pages: TLS errors ask in the tab-bar prompt (like every other question) instead of a `nova://` error page. Reopen if the prompt proves too easy to answer by accident.
+- 2026-10-29 — Main-frame detection for adblock: the UI sends a `nav` page message before letting each main-frame navigation go ahead; it reaches the web process before the load (same IPC connection). The extension follows the main document through redirects.
 - 2026-10-29 — D9 (user): no DRM in the WebKit edition v1; DRM sites stay in the CEF edition.
 - 2026-10-28 — D8 (user): appear as macOS Safari by default (UA + `navigator.platform`); `content.user_agent` keeps `webkit` and custom values, per site. Safari version token followed by hand (27.0 now).
 
@@ -253,6 +270,7 @@ Newest first. Settled — don't reopen without new evidence.
 
 Newest first.
 
+- 2026-10-29 (IST, 01:30) — The WebKit edition runs: `src/` (app, windows/tabs, modes, commands, hints, permissions, downloads + aria2, passwords UI, adblock, dark mode, zoom, IPC) + `ext/` (web process extension). nova-core gained hints, spawn, aria2, passwords, net, GDK keys (commit `5ab8102`, local; not pushed). `tests/smoke.sh` 42/42 on debug + release. CEF `makepkg` from branch `nova-core` OK. Gotcha: the webkit-web-process-extension6 binding asserts on the NULL `redirected_response` of `send-request`; `ext` connects the signal by hand. Next: user manual pass (`docs/manual-test.md`).
 - 2026-10-29 (IST) — W10 go (user sign-ins). HDFC "Upgrade browser" modal only with the stock UA → first evidence for D8. Next: Phase C.
 
 - 2026-10-29 (IST, 00:15) — D9 added (no DRM in v1). W10 part 1: 18 sites × {safari, webkit} load normally, no unsupported-browser pages. Next: user sign-ins in the spike with `--safari`.

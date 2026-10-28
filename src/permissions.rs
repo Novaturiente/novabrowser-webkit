@@ -33,6 +33,8 @@ thread_local! {
     static QUEUE: RefCell<VecDeque<Pending>> = const { RefCell::new(VecDeque::new()) };
     static SAVED: RefCell<Option<Map<String, Value>>> = const { RefCell::new(None) };
     static ASK_ID: Cell<u64> = const { Cell::new(0) };
+    /// When the front prompt last changed: keys typed just before it appeared can't answer it (A3).
+    static SHOWN: RefCell<(Option<String>, Option<std::time::Instant>)> = const { RefCell::new((None, None)) };
 }
 
 fn file() -> PathBuf {
@@ -320,6 +322,11 @@ fn show_later() {
 /// Show the oldest open prompt, or leave prompt mode when there is none.
 fn show() {
     let text = QUEUE.with_borrow(|q| q.front().map(|p| p.text.clone()));
+    SHOWN.with_borrow_mut(|s| {
+        if s.0 != text {
+            *s = (text.clone(), Some(std::time::Instant::now()));
+        }
+    });
     let on = text.is_some();
     window::set_prompt(text);
     match (on, modes::mode() == modes::Mode::Prompt) {
@@ -347,6 +354,9 @@ pub fn on_key(name: &str) {
         "N" => (false, true),
         _ => return,
     };
+    if name != "Escape" && !grace_over(SHOWN.with_borrow(|s| s.1)) {
+        return;
+    }
     let Some(p) = QUEUE.with_borrow_mut(|q| q.pop_front()) else {
         return show();
     };
@@ -355,6 +365,11 @@ pub fn on_key(name: &str) {
     }
     answer(p.view, &p.cb, allow);
     show();
+}
+
+/// 400 ms after a prompt appears before y/n/A/N count (Escape always does: it's "no").
+fn grace_over(shown: Option<std::time::Instant>) -> bool {
+    shown.is_none_or(|t| t.elapsed() >= std::time::Duration::from_millis(400))
 }
 
 /// Tab closed or hibernated: answer its open questions with no.
@@ -385,6 +400,14 @@ mod tests {
         assert_eq!(combine(&[Ask, Deny]), Deny);
         assert_eq!(combine(&[Allow, Allow]), Allow);
         assert_eq!(combine(&[]), Allow);
+    }
+
+    #[test]
+    fn keys_right_after_a_prompt_dont_answer_it() {
+        use std::time::{Duration, Instant};
+        assert!(!grace_over(Some(Instant::now())));
+        assert!(grace_over(Instant::now().checked_sub(Duration::from_secs(1))));
+        assert!(grace_over(None));
     }
 
     #[test]
