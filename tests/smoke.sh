@@ -64,6 +64,95 @@ wait_for 'Zoom level: 150' 5 && ok "zoom" || fail "zoom: $(q)"
 "$bin" --cmd "nonexistent-cmd" >/dev/null
 wait_for '"message":"error:' 5 && ok "unknown command reports an error" || fail "error message: $(q)"
 
+# back / forward in one tab
+"$bin" --cmd "open $(page four)" >/dev/null
+wait_for '"title":"four"' && "$bin" --cmd "back" >/dev/null && wait_for '"url":"data:text/html,<title>two' 5 \
+    && ok "back" || fail "back: $(q)"
+"$bin" --cmd "forward" >/dev/null
+wait_for '"url":"data:text/html,<title>four' 5 && ok "forward" || fail "forward: $(q)"
+
+# pinned tabs refuse tab-close; undo brings a closed tab back
+"$bin" --cmd "tab-pin" >/dev/null
+"$bin" --cmd "tab-close" >/dev/null
+wait_for 'Tab is pinned' 5 && ok "pinned tab refuses tab-close" || fail "pinned close: $(q)"
+"$bin" --cmd "tab-pin" >/dev/null
+n=$(ntabs); "$bin" --cmd "tab-close" >/dev/null; sleep 0.5
+"$bin" --cmd "undo" >/dev/null
+wait_for '"title":"four"' 5 && [ "$(ntabs)" = "$n" ] && ok "undo reopens the closed tab" || fail "undo: $(q)"
+
+# JS dialog lands in the tab-bar prompt; closing its tab drops it
+"$bin" --cmd "open -t data:text/html,<title>dlg</title><script>setTimeout(()=>alert(424242),300)</script>" >/dev/null
+wait_for '"prompt":"[^"]*424242' 10 && ok "alert() shows in the prompt" || fail "alert: $(q)"
+"$bin" --cmd "tab-close" >/dev/null
+wait_for '"prompt":null' 5 && ok "closing the tab drops its dialog" || fail "dialog drop: $(q)"
+
+# crash page: kill the active tab's web process, other tabs keep running, reload brings it back
+"$bin" --cmd "open -t $(page victim)" >/dev/null
+wait_for '"title":"victim"' 10
+# every web process: tabs show the crash page, chrome views (tab bar…) reload themselves
+# (they may sit under bwrap: walk up from every web process to our pid)
+desc() { local p=$1; while [ "$p" -gt 1 ]; do [ "$p" = "$pid" ] && return 0; p=$(awk '{print $4}' /proc/$p/stat 2>/dev/null || echo 1); done; return 1; }
+for wp in $(pgrep WebKitWebProces); do desc $wp && kill -9 $wp; done
+wait_for '"crashed":true' 10 && ok "crash page after kill -9 of the web process" || fail "crash: $(q)"
+"$bin" --cmd "reload" >/dev/null
+wait_for '"title":"victim"' 10 && ! q | grep -q '"active":[0-9]*,[^]]*"crashed":true,[^}]*"title":"victim"' && ok "reload after a crash" || fail "crash reload: $(q)"
+"$bin" --cmd "hint" >/dev/null   # the tab bar must be back to show the mode
+wait_for '"label":"-- HINT MODE --"' 5 && "$bin" --cmd "mode-leave" >/dev/null && ok "tabs work after their web processes died" || fail "after crash: $(q)"
+"$bin" --cmd "tab-close" >/dev/null
+
+# spawn -o and a userscript writing commands to QUTE_FIFO
+"$bin" --cmd "spawn -o echo spawned-output" >/dev/null
+wait_for '"title":"Output"' 10 && ok "spawn -o shows output in a tab" || fail "spawn -o: $(q)"
+"$bin" --cmd "tab-close" >/dev/null
+mkdir -p $XDG_CONFIG_HOME/$app/userscripts
+printf '#!/bin/sh\necho "message-info fifo-ok $QUTE_TITLE" >> "$QUTE_FIFO"\n' > $XDG_CONFIG_HOME/$app/userscripts/hello
+chmod +x $XDG_CONFIG_HOME/$app/userscripts/hello
+"$bin" --cmd "spawn -u hello" >/dev/null
+wait_for 'fifo-ok' 10 && ok "userscript: QUTE_FIFO line runs as a command" || fail "userscript: $(q)"
+
+# sessions by name, quickmarks, bookmarks
+"$bin" --cmd "session-save smoke" >/dev/null; sleep 0.5
+[ -s "$XDG_DATA_HOME/$app/sessions/smoke.json" ] && ok "session-save NAME" || fail "session-save"
+"$bin" --cmd "session-save ../evil" >/dev/null
+wait_for '"message":"error:' 5 && [ ! -e "$XDG_DATA_HOME/$app/evil.json" ] && ok "session names can't leave the dir" || fail "session path: $(q)"
+"$bin" --cmd "quickmark-add data:text/html,<title>qm</title> smokeqm" >/dev/null
+"$bin" --cmd "quickmark-load -t smokeqm" >/dev/null
+wait_for '"title":"qm"' 10 && ok "quickmark add + load" || fail "quickmark: $(q)"
+"$bin" --cmd "bookmark-add" >/dev/null; sleep 0.3
+grep -q 'qm' "$XDG_CONFIG_HOME/$app/bookmarks/urls" 2>/dev/null && ok "bookmark-add writes bookmarks/urls" || fail "bookmark-add"
+"$bin" --cmd "tab-close" >/dev/null
+
+# windows: open -w and a private window
+w=$(q | grep -o '"windows":[0-9]*')
+"$bin" --cmd "open -w $(page win2)" >/dev/null
+wait_for '"windows":2' 10 && ok "open -w makes a second window" || fail "open -w: $(q) (was $w)"
+"$bin" --cmd "close" >/dev/null
+wait_for '"windows":1' 10 && ok ":close closes only that window" || fail "close window: $(q)"
+
+# downloads: attachment from a local server lands in downloads.location.directory
+srv=$tmp/www; mkdir -p $srv/dl
+echo 'payload' > $srv/dl/file.bin
+port=$((20000 + RANDOM % 20000))
+(cd $srv && exec python3 -m http.server $port --bind 127.0.0.1 2>$tmp/http.log) &
+http=$!
+sleep 0.5
+"$bin" --cmd "set downloads.location.directory $tmp/dl" >/dev/null
+"$bin" --cmd "download http://127.0.0.1:$port/dl/file.bin" >/dev/null
+for _ in $(seq 50); do [ -s $tmp/dl/file.bin ] && break; sleep 0.2; done
+[ "$(cat $tmp/dl/file.bin 2>/dev/null)" = payload ] && ok "download (WebKit backend)" || fail "download: $(ls $tmp/dl 2>&1) $(q)"
+"$bin" --cmd "download http://127.0.0.1:$port/dl/file.bin" >/dev/null
+for _ in $(seq 50); do [ -s "$tmp/dl/file (1).bin" ] || [ -s "$tmp/dl/file.1.bin" ] && break; sleep 0.2; done
+[ -s "$tmp/dl/file (1).bin" ] || [ -s "$tmp/dl/file.1.bin" ]; [ $? = 0 ] && ok "second download gets a (1) name" || fail "unique name: $(ls $tmp/dl)"
+
+# https-toggle on a local http page writes https_excludes; dark-toggle writes darkmode_excludes
+"$bin" --cmd "open -t http://127.0.0.1:$port/dl/" >/dev/null; sleep 1
+"$bin" --cmd "https-toggle" >/dev/null; sleep 0.5
+grep -q "127.0.0.1:$port" "$XDG_CONFIG_HOME/$app/https_excludes" 2>/dev/null && ok "https-toggle writes https_excludes" || fail "https-toggle: $(q)"
+"$bin" --cmd "dark-toggle" >/dev/null; sleep 0.5
+wait_for 'Dark mode on for 127.0.0.1' 5 && ok "dark-toggle" || fail "dark-toggle: $(q)"
+"$bin" --cmd "tab-close" >/dev/null
+kill $http
+
 # adblock network rule in the web process extension, against a local server
 srv=$tmp/www; mkdir -p $srv/ads
 echo '<title>ads</title><script src="/ads/x.js"></script><img src="/ok.png">' > $srv/index.html
@@ -82,6 +171,7 @@ grep -q 'GET /ok.png' $tmp/http.log && ! grep -q 'GET /ads/x.js' $tmp/http.log \
 kill $http
 "$bin" --cmd "tab-close" >/dev/null
 
+saved_tabs=$(ntabs)
 stop "quit -s"
 grep -q '"panicked\|panicked at' "$tmp/stderr" && fail "panic in stderr ($tmp/stderr)" || ok "no panics"
 grep -q "web process extension not found" "$tmp/stderr" && fail "extension .so not found next to the binary" || ok "extension found"
@@ -89,7 +179,7 @@ grep -q "web process extension not found" "$tmp/stderr" && fail "extension .so n
 
 # second run: auto_save.session restores both tabs (lazily: titles come from the session)
 start
-wait_for '"title":"two"' 30 && [ "$(ntabs)" = 2 ] && ok "session restored at start" || fail "restore: $(q)"
+wait_for '"title":"four"' 30 && [ "$(ntabs)" = "$saved_tabs" ] && ok "session restored at start" || fail "restore: $(q)"
 stop
 
 echo; [ $fails = 0 ] && echo "smoke: all passed" || { echo "smoke: $fails failed"; cat "$tmp/stderr" | grep -vi enchant | tail -20; }

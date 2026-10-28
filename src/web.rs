@@ -269,6 +269,8 @@ pub fn chrome_view(ui: &str, on_message: impl Fn(&str) + 'static) -> WebView {
         .settings(&s)
         .build();
     view.set_background_color(&gdk::RGBA::new(0.0, 0.0, 0.0, 0.0));
+    // its web process died: load it again (it says `ready` and gets its state back)
+    view.connect_web_process_terminated(|v, _| v.reload());
     view.load_uri(&format!("nova://ui/{ui}"));
     view
 }
