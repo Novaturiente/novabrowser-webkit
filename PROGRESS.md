@@ -173,7 +173,7 @@ Prompts and permissions
 - [~] 7.18 TLS error → a prompt (not a `nova://` page); yes = `allow_tls_certificate_for_host` + reload [m]
 
 Appearance
-- [~] 7.19 Dark mode per site (S: `dark-toggle`): WebKit colour filter as a per-view user style, live switch on toggle; pages already dark (GitHub on a dark system theme) skipped via a check in world `novabrowser` that re-runs on theme changes (html/body attributes, load, system scheme, 1 s and 3 s); smoke: `tests/pages/late-dark.html` is filtered while light, left alone once dark. Screenshot-checked: Wikipedia live + fresh load dark, GitHub stays dark. Images keep their colours (Rust logo black on dark) [m] look
+- [~] 7.19 Dark mode per site (S: `dark-toggle`): WebKit colour filter as a per-view user style, live switch on toggle; pages already dark (GitHub on a dark system theme) skipped via a check in world `novabrowser` that re-runs on theme changes (html/body attributes, load, system scheme, 1 s and 3 s); smoke: `tests/pages/late-dark.html` is filtered while light, left alone once dark. Screenshot-checked: Wikipedia live + fresh load dark, GitHub stays dark. Images keep their colours (Rust logo black on dark). WebKit patch `spikes/wk-build/patches/0001-color-filter-roles.patch` (webkitgtk-6.0-nova 2.54.2-2): backgrounds never lightened, text never darkened → dark headers/code blocks stay dark (`tests/pages/mixed-dark.html`, before/after shots); pages without a background get a dark view background; Speedometer with patched libs off 26.9/26.7/26.8 vs on 26.6/26.7/27.0. Checked: Wikipedia, HN, Stack Overflow (+ Google sign-in frame), GitHub, old.reddit [m] look
 - [m] 7.20 Spellcheck
 
 ## Phase 8 — Sessions and daily driving

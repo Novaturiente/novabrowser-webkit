@@ -1,0 +1,112 @@
+diff -ru a/Source/WebCore/style/StyleColorResolver.cpp b/Source/WebCore/style/StyleColorResolver.cpp
+--- a/Source/WebCore/style/StyleColorResolver.cpp	2026-10-29 02:32:43.792694044 +0530
++++ b/Source/WebCore/style/StyleColorResolver.cpp	2026-10-29 02:33:02.373424893 +0530
+@@ -38,6 +38,21 @@
+     return transformedColor;
+ }
+ 
++WebCore::Color ColorResolver::colorApplyingColorFilter(const WebCore::Color& color, ColorFilterRole role) const
++{
++    auto transformedColor = colorApplyingColorFilter(color);
++    if (role == ColorFilterRole::Background && transformedColor.luminance() > color.luminance())
++        return color;
++    if (role == ColorFilterRole::Foreground && transformedColor.luminance() < color.luminance())
++        return color;
++    return transformedColor;
++}
++
++WebCore::Color ColorResolver::colorResolvingCurrentColorApplyingColorFilter(const Style::Color& color, ColorFilterRole role) const
++{
++    return colorApplyingColorFilter(colorResolvingCurrentColor(color), role);
++}
++
+ WebCore::Color ColorResolver::colorResolvingCurrentColor(const Style::Color& color) const
+ {
+     return color.resolveColor(m_style->color());
+diff -ru a/Source/WebCore/style/StyleColorResolver.h b/Source/WebCore/style/StyleColorResolver.h
+--- a/Source/WebCore/style/StyleColorResolver.h	2026-10-29 02:32:43.473691267 +0530
++++ b/Source/WebCore/style/StyleColorResolver.h	2026-10-29 02:33:02.371854442 +0530
+@@ -48,6 +48,11 @@
+     { T::excludesVisitedLinkColor(std::declval<const WebCore::Color&>()) } -> std::same_as<bool>;
+ };
+ 
++// novabrowser: role-aware `-apple-color-filter` for a Chromium-like dark mode. A background is
++// never made lighter and text is never made darker, so parts of a page that are already dark
++// (a dark header, light text on it) stay as they are. Any = the filter as WebKit applies it.
++enum class ColorFilterRole : uint8_t { Any, Background, Foreground };
++
+ class ColorResolver {
+ public:
+     explicit ColorResolver(const Style::ComputedStyle& style)
+@@ -61,6 +66,8 @@
+     }
+ 
+     WebCore::Color colorApplyingColorFilter(const WebCore::Color&) const;
++    WebCore::Color colorApplyingColorFilter(const WebCore::Color&, ColorFilterRole) const;
++    WebCore::Color colorResolvingCurrentColorApplyingColorFilter(const Style::Color&, ColorFilterRole) const;
+ 
+     // Resolves any references to `currentcolor` in the provided `Style::Color` to the current `ComputedStyle::color()` value.
+     WebCore::Color colorResolvingCurrentColor(const Style::Color&) const;
+@@ -76,6 +83,21 @@
+     const CheckedRef<const ComputedStyleProperties> m_style;
+ };
+ 
++template<typename ColorTraits> constexpr ColorFilterRole colorFilterRoleFor()
++{
++    if constexpr (std::same_as<ColorTraits, ColorPropertyTraits<PropertyNameConstant<CSSPropertyBackgroundColor>>>)
++        return ColorFilterRole::Background;
++    else if constexpr (std::same_as<ColorTraits, ColorPropertyTraits<PropertyNameConstant<CSSPropertyColor>>>
++        || std::same_as<ColorTraits, ColorPropertyTraits<PropertyNameConstant<CSSPropertyWebkitTextFillColor>>>
++        || std::same_as<ColorTraits, ColorPropertyTraits<PropertyNameConstant<CSSPropertyWebkitTextStrokeColor>>>
++        || std::same_as<ColorTraits, ColorPropertyTraits<PropertyNameConstant<CSSPropertyCaretColor>>>
++        || std::same_as<ColorTraits, ColorPropertyTraits<PropertyNameConstant<CSSPropertyTextDecorationColor>>>
++        || std::same_as<ColorTraits, ColorPropertyTraits<PropertyNameConstant<CSSPropertyTextEmphasisColor>>>)
++        return ColorFilterRole::Foreground;
++    else
++        return ColorFilterRole::Any;
++}
++
+ // Property specialized resolver. Can perform visited link color specific resolutions that the non-specialized resolver cannot.
+ template<typename ColorTraits> class ColorPropertyResolver : public ColorResolver {
+ public:
+@@ -118,7 +140,7 @@
+ {
+     if (m_style->appleColorFilter().isNone())
+         return colorResolvingCurrentColor();
+-    return colorApplyingColorFilter(colorResolvingCurrentColor());
++    return colorApplyingColorFilter(colorResolvingCurrentColor(), colorFilterRoleFor<ColorTraits>());
+ }
+ 
+ template<typename ColorTraits>
+@@ -138,7 +160,7 @@
+ {
+     if (m_style->appleColorFilter().isNone())
+         return visitedLinkColorResolvingCurrentColor();
+-    return colorApplyingColorFilter(visitedLinkColorResolvingCurrentColor());
++    return colorApplyingColorFilter(visitedLinkColorResolvingCurrentColor(), colorFilterRoleFor<ColorTraits>());
+ }
+ 
+ template<typename ColorTraits>
+@@ -169,7 +191,7 @@
+ {
+     if (m_style->appleColorFilter().isNone())
+         return visitedDependentColor(paintBehavior);
+-    return colorApplyingColorFilter(visitedDependentColor(paintBehavior));
++    return colorApplyingColorFilter(visitedDependentColor(paintBehavior), colorFilterRoleFor<ColorTraits>());
+ }
+ 
+ } // namespace Style
+diff -ru a/Source/WebCore/style/values/images/StyleGradient.cpp b/Source/WebCore/style/values/images/StyleGradient.cpp
+--- a/Source/WebCore/style/values/images/StyleGradient.cpp	2026-10-29 02:32:44.066696430 +0530
++++ b/Source/WebCore/style/values/images/StyleGradient.cpp	2026-10-29 02:33:02.373424893 +0530
+@@ -110,8 +110,9 @@
+ {
+     Style::ColorResolver colorResolver { style };
+ 
++    // novabrowser: CSS gradients are mostly background-image, so they follow the background role
+     if (hasColorFilter)
+-        return colorResolver.colorResolvingCurrentColorApplyingColorFilter(styleColor);
++        return colorResolver.colorResolvingCurrentColorApplyingColorFilter(styleColor, ColorFilterRole::Background);
+     return colorResolver.colorResolvingCurrentColor(styleColor);
+ }
+ 

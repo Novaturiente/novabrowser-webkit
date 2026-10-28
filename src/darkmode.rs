@@ -4,10 +4,13 @@
 //! leaves images alone, close to Chromium's forced dark. The `ColorFilter` feature is on in
 //! every page's settings (web.rs); the property does nothing until this user style sets it.
 //! W13: no measurable Speedometer cost (Dark Reader −42%, CSS invert −12% and unreadable text).
+//! Our WebKit build (webkitgtk-6.0-nova ≥ 2.54.2-2, spikes/wk-build/patches/0001-color-filter-
+//! roles.patch) makes the filter role-aware like Chromium: backgrounds are never lightened and
+//! text never darkened, so dark parts of a light page stay dark. Stock WebKitGTK inverts all.
 //! Pages already dark on their own (GitHub under a dark system theme) are left alone, as in
 //! Chromium: a document-end script in our world marks them and the style skips marked roots.
 //! It re-checks when the page switches theme later (class/style/attribute change on html or
-//! body, `load`, the system colour scheme, and once at 1 s and 3 s), both ways.
+//! body, `load`, the system colour scheme, and every 2 s), both ways.
 //! shortcut: `darkmode.algorithm` / `policy.images` are Chromium knobs and are ignored here;
 //! text baked into images and CSS background-images stay as they are; a page that is light
 //! until DOMContentLoaded and dark after shows inverted for that moment.
@@ -19,7 +22,8 @@ use webkit6::{UserContentInjectedFrames, UserScript, UserScriptInjectionTime, Us
 
 const CSS: &str = ":root:not([data-nova-native-dark]) { -apple-color-filter: apple-invert-lightness() !important; }";
 /// Marks the root while the page paints dark itself. Background = first opaque of html, body,
-/// else the outermost opaque element under the view centre (SPA wrappers like `#root`); no
+/// else the outermost opaque element under the view centre covering half the view (SPA
+/// wrappers like `#root`); no
 /// background anywhere -> the `color-scheme` the page picks. Computed colours are unfiltered.
 /// Installed once per document; running it again (live toggle) just re-checks.
 const NATIVE_DARK: &str = r#"(() => {
@@ -30,7 +34,9 @@ const NATIVE_DARK: &str = r#"(() => {
   const check = () => {
     const d = document.documentElement; if (!d) return;
     let bg = [d, document.body].map(lum).find(x => x != null);
-    if (bg == null) bg = document.elementsFromPoint(innerWidth / 2, innerHeight / 2).map(lum).filter(x => x != null).pop();
+    // only elements covering half the view count as the page background (not a centred button)
+    const big = e => { const r = e.getBoundingClientRect(); return r.width * r.height >= innerWidth * innerHeight / 2; };
+    if (bg == null) bg = document.elementsFromPoint(innerWidth / 2, innerHeight / 2).filter(big).map(lum).filter(x => x != null).pop();
     const cs = getComputedStyle(d).colorScheme || '';
     const dark = bg != null ? bg < 0.4 : /dark/.test(cs) && (!/light/.test(cs) || matchMedia('(prefers-color-scheme: dark)').matches);
     if (dark !== d.hasAttribute(A)) dark ? d.setAttribute(A, '') : d.removeAttribute(A);
@@ -44,8 +50,9 @@ const NATIVE_DARK: &str = r#"(() => {
   watch();
   addEventListener('load', () => { watch(); check(); });
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', check);
-  setTimeout(check, 1000);
-  setTimeout(check, 3000);
+  // themes also switch by swapping style sheets (no attribute change): poll; two
+  // getComputedStyle reads per tick in the normal case
+  setInterval(check, 2000);
   check();
 })()"#;
 
@@ -77,6 +84,12 @@ pub fn apply_for(view: &WebView, url: &str) {
         return;
     }
     let Some(ucm) = view.user_content_manager() else { return };
+    // a page without a background shows the view's own (`colors.webpage.bg`), which the filter
+    // never touches: dark grey (= white through the filter) while dark, back to config after
+    let bg = if want { "#333333".to_string() } else { config::get().str("colors.webpage.bg") };
+    if let Ok(c) = gtk::gdk::RGBA::parse(bg.as_str()) {
+        view.set_background_color(&c);
+    }
     if let Some((css, js)) = ON.with_borrow_mut(|o| o.remove(&id)) {
         ucm.remove_style_sheet(&css);
         ucm.remove_script(&js);

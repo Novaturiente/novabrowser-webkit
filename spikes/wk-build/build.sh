@@ -19,6 +19,16 @@ case $stage in
   pkg) prefix=/usr; pgo="-fprofile-use=$HOME/wk-build/wk.profdata -Wno-profile-instr-unprofiled -Wno-profile-instr-out-of-date -Wno-backend-plugin"; lto=(-D LTO_MODE=thin -D CMAKE_INSTALL_LIBEXECDIR=lib -D CMAKE_SKIP_RPATH=ON); ldx="-Wl,--thinlto-jobs=4" ;;
   *) echo "stage: gen|use|pkg" >&2; exit 2 ;;
 esac
+# our WebKit patches (../patches, copied to ~/wk-build/patches): apply each once
+for p in "$HOME"/wk-build/patches/*.patch; do
+  [ -e "$p" ] || continue
+  if patch -d "$SRC" -p1 -R --dry-run -s -f < "$p" >/dev/null 2>&1; then
+    echo "patch already applied: $(basename "$p")"
+  else
+    patch -d "$SRC" -p1 -N -s < "$p"
+    echo "patch applied: $(basename "$p")"
+  fi
+done
 export CC=clang CXX=clang++
 export CFLAGS="$base $pgo" CXXFLAGS="$base $pgo" LDFLAGS="-fuse-ld=lld $pgo ${ldx:-}"
 cmake -S "$SRC" -B "$BUILD" -G Ninja \

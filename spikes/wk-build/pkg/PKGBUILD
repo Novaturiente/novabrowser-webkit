@@ -5,8 +5,9 @@
 #   sudo pacman -U /var/cache/pacman/pkg/webkitgtk-6.0-2.54.2-1-x86_64.pkg.tar.zst
 pkgname=webkitgtk-6.0-nova
 pkgver=2.54.2
-pkgrel=1
-pkgdesc="Web content engine for GTK (PGO + x86-64-v3 + ThinLTO build, no introspection/docs)"
+pkgrel=2
+# -2: ../patches/0001-color-filter-roles.patch (role-aware -apple-color-filter for dark mode)
+pkgdesc="Web content engine for GTK (PGO + x86-64-v3 + ThinLTO build, no introspection/docs, novabrowser patches)"
 url="https://webkitgtk.org"
 arch=(x86_64)
 license=('LGPL-2.1-or-later' 'BSD-2-Clause')

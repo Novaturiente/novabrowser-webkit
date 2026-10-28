@@ -1,0 +1,23 @@
+<!doctype html>
+<!-- dark mode test (look): a light page with parts that are already dark. With the patched
+     WebKit (spikes/wk-build/patches/0001-color-filter-roles.patch) the header, code block and
+     blue button keep their colours; the white page and dark body text are inverted. -->
+<title>mixed dark</title>
+<style>
+  body { margin: 0; background: #fff; color: #222; font: 22px sans-serif; }
+  header { background: #1f2328; color: #f0f0f0; padding: 16px 24px; }
+  main { padding: 24px; }
+  pre { background: #0d1117; color: #c9d1d9; padding: 12px; }
+  .card { border: 1px solid #ddd; background: #f6f8fa; padding: 12px; margin: 12px 0; }
+  button { background: #0969da; color: #fff; border: 0; padding: 8px 16px; font-size: 20px; }
+  .grad { height: 40px; background: linear-gradient(90deg, #ffffff, #e0e0e0); }
+</style>
+<header>Dark header with light text: must stay dark</header>
+<main>
+  <p>Body text on a white page: page goes dark, text goes light.</p>
+  <pre>dark code block: stays dark</pre>
+  <div class="card">Light card with a light border: card goes dark.</div>
+  <button>White text on blue</button>
+  <p>Light gradient below: goes dark.</p>
+  <div class="grad"></div>
+</main>
