@@ -10,9 +10,9 @@ Status: `[ ]` todo · `[~]` partial · `[x]` done · `[-]` dropped (reason given
 
 ## Now
 
-- **Phase:** 0 → C
-- **Next action:** spike W10 (sign-in + site compat, go/no-go), then Phase C
-  (nova-core extraction).
+- **Phase:** C (nova-core extraction)
+- **Next action:** C1 — map module dependencies in the CEF edition, create
+  `../nova-core`, move the pure modules (C2).
 - **Blockers:** none.
 
 ---
@@ -21,7 +21,7 @@ Status: `[ ]` todo · `[~]` partial · `[x]` done · `[-]` dropped (reason given
 
 - [x] W9 Speedometer 3.1 — installed `webkitgtk-6.0-nova` 27.25 vs CEF 0.1.8 26.3 (2026-10-28, `spikes/w9-baseline/results/ab-cef.jsonl`); Arch build 18.95 vs own PGO 23.95 in the tool sandbox (`ab-build.jsonl`); env knobs no gain (`ab-env.jsonl`).
 - [~] Own WebKitGTK build — PGO + v3 + ThinLTO, `webkitgtk-6.0-nova` 2.54.2-1 installed on novarch (`spikes/wk-build/`). Left: video/site check (W1, W10), introspection decision (Phase W).
-- [~] W10 sign-in + site compat — go/no-go (PLAN.md §6). Part 1 done 2026-10-29 (`spikes/w9-baseline/compat.sh`, `results/w10/compat.jsonl` + PNGs, ephemeral session, Safari and stock UA): Google sign-in, Gmail, YouTube, Maps, Meet, ChatGPT, Microsoft login, Outlook, Teams, WhatsApp Web (QR shown, "Download for Mac"), Discord, GitHub, Slack, Figma, HDFC, SBI YONO, Reddit (JS challenge passed), X all load their normal pages; no "unsupported browser" text on any; identical for both UAs. YouTube video loaded but didn't autoplay (no gesture; playback is W1). Left (needs user): real sign-ins — Google, ChatGPT via Google, Microsoft/Teams, WhatsApp QR link, Discord, a bank; Meet call.
+- [x] W10 sign-in + site compat — **go** (user, 2026-10-29: Google sign-in and ChatGPT "Sign in with Google" work in the spike with `--safari`). HDFC NetBanking shows an "Upgrade browser … older browser version" modal with the stock WebKit UA and **none with the Safari identity** (`results/w10/hdfc-{webkit,safari}.png`; found by the user, missed by the text check, which had no "upgrade browser" pattern and only 600 chars). Screenshot diff safari vs stock: only hdfc (59.5%) is UA-dependent; reddit/youtube/maps/whatsapp diffs are live content. Not tried: Microsoft/Teams, WhatsApp link, Discord, bank login, Meet call — checked again in Phase 8 daily driving. Part 1 done 2026-10-29 (`spikes/w9-baseline/compat.sh`, `results/w10/compat.jsonl` + PNGs, ephemeral session, Safari and stock UA): Google sign-in, Gmail, YouTube, Maps, Meet, ChatGPT, Microsoft login, Outlook, Teams, WhatsApp Web (QR shown, "Download for Mac"), Discord, GitHub, Slack, Figma, HDFC, SBI YONO, Reddit (JS challenge passed), X all load their normal pages; no "unsupported browser" text on any; identical for both UAs. YouTube video loaded but didn't autoplay (no gesture; playback is W1). Left (needs user): real sign-ins — Google, ChatGPT via Google, Microsoft/Teams, WhatsApp QR link, Discord, a bank; Meet call.
 - [ ] W1 Wayland + media (HiDPI, clipboard, `<select>`, IME, VA-API, H.264/AAC, WebRTC)
 - [ ] W2 layout + transparent chrome views + focus hand-off
 - [ ] W3 key capture
@@ -252,6 +252,8 @@ Newest first. Settled — don't reopen without new evidence.
 ## Session log
 
 Newest first.
+
+- 2026-10-29 (IST) — W10 go (user sign-ins). HDFC "Upgrade browser" modal only with the stock UA → first evidence for D8. Next: Phase C.
 
 - 2026-10-29 (IST, 00:15) — D9 added (no DRM in v1). W10 part 1: 18 sites × {safari, webkit} load normally, no unsupported-browser pages. Next: user sign-ins in the spike with `--safari`.
 
