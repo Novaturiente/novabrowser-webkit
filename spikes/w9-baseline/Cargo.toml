@@ -1,0 +1,9 @@
+[package]
+name = "w9-baseline"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+gtk = { package = "gtk4", version = "0.11", features = ["v4_18"] }
+webkit6 = { version = "0.6", features = ["v2_52"] }

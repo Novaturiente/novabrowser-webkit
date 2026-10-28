@@ -19,7 +19,7 @@
 - [ ] W6 frame-targeted reply
 - [ ] W7 adblock
 - [ ] W8 session state
-- [ ] W9 baseline
+- [~] W9 baseline — Speedometer 3.1 only (2026-10-28, `spikes/w9-baseline`, `results/speedometer.json`): bare WebKitGTK 6.0 2.54.2 = 19.4 / 19.0 / 19.2, median **19.2**, all valid; AC, power profile `default`. Left: same-conditions rerun of CEF + Chrome (theirs were on `performance`), startup, idle RSS, YouTube scroll.
 - [ ] W10 sign-in and compat
 - [ ] W11 permissions, TLS, dialogs
 
@@ -43,6 +43,8 @@ Newest first.
   plan written from novabrowser 0.1.8 (`9574fca`). D1–D6 open.
 
 ## Session log
+
+- 2026-10-28 (IST, 18:15) — Built spike `spikes/w9-baseline` (gtk4 0.11 + `v4_18`, webkit6 0.6 + `v2_52`; gtk4 needs a `v4_10`+ feature or webkit6 fails on `gtk::Accessible`). `--speedometer` loads Speedometer 3.1, clicks Start after 3 s, polls via `evaluate_javascript`, prints result JSON. Median 19.2 (3 valid runs). Next: rerun CEF/Chrome on the same power profile for a fair gap.
 
 - 2026-10-28 (IST) — Read the whole CEF edition (all `src/` modules, UI pages,
   PLAN/PROGRESS decisions); checked WebKitGTK 6.0 API against webkitgtk.org

@@ -1,0 +1,14 @@
+{
+  "date": "2026-10-28 18:06-18:12 IST",
+  "engine": "webkitgtk-6.0 2.54.2 (Arch), gtk4 4.24.1, bare WebView, default WebKitSettings",
+  "url": "https://browserbench.org/Speedometer3.1/",
+  "window": "tiled 1420x1146, dpr 1, visible",
+  "conditions": { "ac_online": 1, "power_profile": "default (EPP default)", "loadavg_start": "3.06 2.94 1.96" },
+  "runs": [
+    { "score": 19.4, "confidence": "± 1.1", "valid": true, "duration_s": 40 },
+    { "score": 19.0, "confidence": "± 0.89", "valid": true, "duration_s": 25 },
+    { "score": 19.2, "confidence": "± 0.82", "valid": true, "duration_s": 30 }
+  ],
+  "median": 19.2,
+  "note": "CEF-edition numbers (../novabrowser PROGRESS.md: Chrome 31.8, own CEF 26.1-26.5, prebuilt CEF 24.9) were taken on the performance profile, so they are not directly comparable."
+}
