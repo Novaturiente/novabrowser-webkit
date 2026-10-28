@@ -1,0 +1,483 @@
+{
+ "conditions": {
+  "at": "2026-10-28T12:53:15.425Z",
+  "loadavg": "0.98 1.20 1.63 2/3868 10",
+  "acOnline": "1",
+  "battery": "Not charging",
+  "governor": "performance",
+  "epp": "default",
+  "platformProfile": "performance",
+  "memAvailableKB": 10377952
+ },
+ "url": "https://browserbench.org/Speedometer3.1/",
+ "runs": {
+  "novabare": [
+   {
+    "kind": "novabare",
+    "conditions": {
+     "at": "2026-10-28T12:53:15.487Z",
+     "loadavg": "0.98 1.20 1.63 2/3869 37",
+     "acOnline": "1",
+     "battery": "Not charging",
+     "governor": "performance",
+     "epp": "default",
+     "platformProfile": "performance",
+     "memAvailableKB": 10358068
+    },
+    "extraFlags": [
+     "--disable-renderer-backgrounding",
+     "--disable-background-timer-throttling",
+     "--disable-backgrounding-occluded-windows"
+    ],
+    "windows": [],
+    "before": {
+     "w": 1420,
+     "h": 1129,
+     "dpr": 1,
+     "vis": "visible",
+     "focus": true,
+     "sizeWarning": "none"
+    },
+    "during": [
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": true,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": true,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": true,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": true,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": true,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": true,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": true,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": true,
+      "res": ""
+     },
+     {
+      "hash": "#summary",
+      "vis": "visible",
+      "focus": false,
+      "res": "23.4"
+     }
+    ],
+    "durationS": 40.084,
+    "score": 23.4,
+    "confidence": "± 1.1",
+    "summaryClass": "valid",
+    "valid": true,
+    "invalidTextShown": false,
+    "after": {
+     "vis": "visible",
+     "focus": false
+    }
+   },
+   {
+    "kind": "novabare",
+    "conditions": {
+     "at": "2026-10-28T12:54:04.669Z",
+     "loadavg": "1.44 1.28 1.64 3/3884 299",
+     "acOnline": "1",
+     "battery": "Not charging",
+     "governor": "performance",
+     "epp": "default",
+     "platformProfile": "performance",
+     "memAvailableKB": 10394840
+    },
+    "extraFlags": [
+     "--disable-renderer-backgrounding",
+     "--disable-background-timer-throttling",
+     "--disable-backgrounding-occluded-windows"
+    ],
+    "windows": [],
+    "before": {
+     "w": 1415,
+     "h": 1129,
+     "dpr": 1,
+     "vis": "visible",
+     "focus": true,
+     "sizeWarning": "none"
+    },
+    "during": [
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": true,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": true,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": true,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": true,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": true,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#summary",
+      "vis": "visible",
+      "focus": false,
+      "res": "21.3"
+     }
+    ],
+    "durationS": 150.204,
+    "score": 21.3,
+    "confidence": "± 1.4",
+    "summaryClass": "valid",
+    "valid": true,
+    "invalidTextShown": false,
+    "after": {
+     "vis": "visible",
+     "focus": false
+    }
+   },
+   {
+    "kind": "novabare",
+    "conditions": {
+     "at": "2026-10-28T12:56:44.182Z",
+     "loadavg": "2.42 1.57 1.68 3/3928 934",
+     "acOnline": "1",
+     "battery": "Not charging",
+     "governor": "performance",
+     "epp": "default",
+     "platformProfile": "performance",
+     "memAvailableKB": 10002560
+    },
+    "extraFlags": [
+     "--disable-renderer-backgrounding",
+     "--disable-background-timer-throttling",
+     "--disable-backgrounding-occluded-windows"
+    ],
+    "windows": [],
+    "before": {
+     "w": 1415,
+     "h": 1129,
+     "dpr": 1,
+     "vis": "visible",
+     "focus": false,
+     "sizeWarning": "none"
+    },
+    "during": [
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": true,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": true,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#running",
+      "vis": "visible",
+      "focus": false,
+      "res": ""
+     },
+     {
+      "hash": "#summary",
+      "vis": "visible",
+      "focus": false,
+      "res": "22.9"
+     }
+    ],
+    "durationS": 75.134,
+    "score": 22.9,
+    "confidence": "± 1.3",
+    "summaryClass": "valid",
+    "valid": true,
+    "invalidTextShown": false,
+    "after": {
+     "vis": "visible",
+     "focus": false
+    }
+   }
+  ]
+ },
+ "medians": {
+  "novabare": 22.9
+ },
+ "conditionsEnd": {
+  "at": "2026-10-28T12:58:08.418Z",
+  "loadavg": "2.06 1.59 1.67 2/3974 1374",
+  "acOnline": "1",
+  "battery": "Not charging",
+  "governor": "performance",
+  "epp": "default",
+  "platformProfile": "performance",
+  "memAvailableKB": 9698544
+ }
+}

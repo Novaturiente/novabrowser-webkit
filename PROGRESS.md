@@ -19,7 +19,7 @@
 - [ ] W6 frame-targeted reply
 - [ ] W7 adblock
 - [ ] W8 session state
-- [~] W9 baseline — Speedometer 3.1 only (2026-10-28, `spikes/w9-baseline`, `results/speedometer.json`): bare WebKitGTK 6.0 2.54.2 = 19.4 / 19.0 / 19.2, median **19.2**, all valid; AC, power profile `default`. Left: same-conditions rerun of CEF + Chrome (theirs were on `performance`), startup, idle RSS, YouTube scroll.
+- [~] W9 baseline — Speedometer 3.1 only (2026-10-28, `spikes/w9-baseline`, `results/speedometer.json`): bare WebKitGTK 6.0 2.54.2 = 19.4 / 19.0 / 19.2, median **19.2**, all valid; rerun back-to-back 18.4/19.2/19.5. Same session, installed CEF novabrowser 0.1.8 bare profile: 23.4/21.3/22.9, median **22.9** → WebKit 16% lower. Left: Chrome in the same session, startup, idle RSS, YouTube scroll.
 - [ ] W10 sign-in and compat
 - [ ] W11 permissions, TLS, dialogs
 

@@ -10,5 +10,8 @@
     { "score": 19.2, "confidence": "± 0.82", "valid": true, "duration_s": 30 }
   ],
   "median": 19.2,
-  "note": "CEF-edition numbers (../novabrowser PROGRESS.md: Chrome 31.8, own CEF 26.1-26.5, prebuilt CEF 24.9) were taken on the performance profile, so they are not directly comparable."
+  "rerun_18_29": { "runs": [18.4, 19.2, 19.5], "median": 19.2, "note": "back-to-back after the CEF runs, platform_profile performance, EPP default" },
+  "cef_same_session": { "what": "installed novabrowser-bin 0.1.8 (own CEF 154), bare profile, s9-baseline speedometer.mjs kind novabare, tiled 1420x1129", "runs": [23.4, 21.3, 22.9], "median": 22.9, "file": "speedometer-cef-novabare.json" },
+  "webkit_vs_cef": "19.2 / 22.9 = 0.84 (WebKit 16% lower)",
+  "caveat": "CEF runs lost window focus (unfocused polls 1/26/14: the focus-keeping hyprctl call finds no window across the sandbox pid namespace); CEF has adblock + passwords.js, WebKit spike has neither"
 }
