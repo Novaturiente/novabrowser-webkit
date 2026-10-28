@@ -149,7 +149,7 @@ in nova-core: 89).
 Adblock (D3, engine in the extension)
 - [x] 7.1 Extension `libnovabrowser_webkit_ext.so` (workspace member `ext/`) loaded from `$NOVA_WEBKIT_EXT_DIR`, next to the binary or `/usr/lib/novabrowser-webkit`; config + engine path via init data and `cfg` messages (S: "extension found", blocking works)
 - [x] 7.2 Blocking in `send-request`, main frame never blocked (UI sends `nav` before each main-frame navigation), per-site `content.blocking.enabled`, whitelist (S + U: `engine_from_cfg_blocks`)
-- [~] 7.3 Lists fetched with curl, cached `engine.dat` + `lists.txt`, `:adblock-update`, "adblock: N lists" (S). Left: size cap, `--proto-redir`, A10 offline rule
+- [x] 7.3 Lists fetched with curl (`--proto =https,http`, `--proto-redir =https`, `--max-filesize 64M`), cached `engine.dat` + `lists.txt`, `:adblock-update`, "adblock: N lists" (S); all lists failing keeps the old cache and its age (A10, code review only)
 - [x] 7.4 Cosmetic CSS + scriptlets: per-tab user script swapped at main-frame `decide-policy`, hostname-guarded, constructable stylesheet (U: `cosmetic_and_generic`); [m] on real sites
 - [x] 7.5 Generic hiding: `adblock-scan.js` in our world → `hidden_class_id_selectors` (U); [m] on real sites
 - [m] 7.6 Exit: adblock-tester, YouTube ads, Speedometer cost, RSS per web process
