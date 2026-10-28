@@ -147,7 +147,8 @@ fn fetch(url: &str) -> Result<String, String> {
     }
     // shortcut: curl instead of an HTTP crate; swap if curl ever isn't on the target systems.
     let out = Command::new("curl")
-        .args(["-fsSL", "--compressed", "--max-time", "120", url])
+        // https/http only, redirects only to https, lists over 64 MB refused
+        .args(["-fsSL", "--compressed", "--max-time", "120", "--proto", "=https,http", "--proto-redir", "=https", "--max-filesize", "64M", url])
         .output()
         .map_err(|e| format!("curl: {e}"))?;
     if !out.status.success() {
@@ -191,6 +192,10 @@ fn update(verbose: bool) {
         };
         rules += text.lines().count();
         set.add_filter_list(text, ParseOptions::default());
+    }
+    if !urls.is_empty() && failed.len() == urls.len() {
+        // offline: keep the old cache and its age, so the next hourly check tries again (A10)
+        return report("warning", format!("adblock: no list could be fetched; kept the old rules ({})", failed.join(", ")));
     }
     let mut e = Engine::new_with_filter_set(set);
     let ok = write_atomic(&engine_file(), &e.serialize()).is_ok()
