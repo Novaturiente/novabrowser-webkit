@@ -19,7 +19,7 @@
 - [ ] W6 frame-targeted reply
 - [ ] W7 adblock
 - [ ] W8 session state
-- [~] W9 baseline — Speedometer 3.1 only (2026-10-28, `spikes/w9-baseline`, `results/speedometer.json`): bare WebKitGTK 6.0 2.54.2 = 19.4 / 19.0 / 19.2, median **19.2**, all valid; rerun back-to-back 18.4/19.2/19.5. Same session, installed CEF novabrowser 0.1.8 bare profile: 23.4/21.3/22.9, median **22.9** → WebKit 16% lower. Left: Chrome in the same session, startup, idle RSS, YouTube scroll.
+- [~] W9 baseline — Speedometer 3.1 only (2026-10-28, `spikes/w9-baseline`, `results/speedometer.json`): bare WebKitGTK 6.0 2.54.2 = 19.4 / 19.0 / 19.2, median **19.2**, all valid; rerun back-to-back 18.4/19.2/19.5. Same session, installed CEF novabrowser 0.1.8 bare profile: 23.4/21.3/22.9, median **22.9** → WebKit 16% lower. Own PGO+v3+ThinLTO WebKitGTK build: **23.95** (+26% over Arch's 18.95, sandbox off for both). Left: Chrome in the same session, startup, idle RSS, YouTube scroll; PGO build with sandbox (needs a system install) and a non-Speedometer training set.
 - [ ] W10 sign-in and compat
 - [ ] W11 permissions, TLS, dialogs
 
@@ -43,6 +43,8 @@ Newest first.
   plan written from novabrowser 0.1.8 (`9574fca`). D1–D6 open.
 
 ## Session log
+
+- 2026-10-28 (IST, 21:00) — Env knob A/B (`ab.sh`, `results/ab-env.jsonl`, 3 rounds): base 19.2, `WEBKIT_SKIA_GPU_PAINTING_THREADS=4` 19.2, `WEBKIT_FORCE_VBLANK_TIMER=1` 19.5 (noise), CPU Skia 8 threads 18.4, `WEBKIT_DISABLE_COMPOSITING_MODE` 18.3, `WEBKIT_DISABLE_DMABUF_RENDERER` 13.4 → keep defaults. Own build on novahome (`spikes/wk-build/`: clang 23, `-march=x86-64-v3 -O2`, IR PGO trained on 3 Speedometer runs, ThinLTO; capped at 20 GB via `systemd-run --user --scope MemoryMax=20G`, `-j8`; peak 12.5 GB, ~42 + ~45 min) installed to `~/.local/opt/wk-pgo` on both hosts. A/B (`ab-build.sh`, `results/ab-build.jsonl`, 4 interleaved rounds): Arch build 18.8 (sandbox) / 18.95 (no sandbox), PGO build **23.95** (no sandbox) = +26%, vs CEF 0.1.8 22.9 (earlier session) +5%. Caveats: profile trained on Speedometer itself (real-site gain likely smaller); PGO build only run without the bubblewrap sandbox; no functional check (video, sites) yet.
 
 - 2026-10-28 (IST, 18:15) — Built spike `spikes/w9-baseline` (gtk4 0.11 + `v4_18`, webkit6 0.6 + `v2_52`; gtk4 needs a `v4_10`+ feature or webkit6 fails on `gtk::Accessible`). `--speedometer` loads Speedometer 3.1, clicks Start after 3 s, polls via `evaluate_javascript`, prints result JSON. Median 19.2 (3 valid runs). Next: rerun CEF/Chrome on the same power profile for a fair gap.
 
