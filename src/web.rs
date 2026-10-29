@@ -108,10 +108,17 @@ pub fn init(data: &std::path::Path, cache: &std::path::Path) {
         );
     });
     chrome.register_uri_scheme("nova", serve_ui);
+    let private = NetworkSession::new_ephemeral();
+    // favicons are off by default in WebKitGTK 6: the `favicon` property stays empty without this
+    for s in [&session, &private] {
+        if let Some(m) = s.website_data_manager() {
+            m.set_favicons_enabled(true);
+        }
+    }
     let c = Ctx {
         pages,
         session,
-        private: NetworkSession::new_ephemeral(),
+        private,
         chrome,
         chrome_session: NetworkSession::new_ephemeral(),
     };

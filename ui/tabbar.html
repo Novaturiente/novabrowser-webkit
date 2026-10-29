@@ -7,28 +7,41 @@
   body { display: flex; overflow: hidden; background: var(--colors-tabs-bar-bg, #555);
          user-select: none; cursor: default; }
   body.vertical { flex-direction: column; overflow-y: auto; }
+  /* Pill tabs (Chrome/Firefox style): rounded, spaced, the bar shows between them.
+     window.rs adds 8 px to the bar height for the 4 px margin above and below. */
   .t { flex: 1 1 0; min-width: 0; max-width: var(--tabs-max-width, none); box-sizing: border-box;
-       padding: var(--tabs-padding, 0 5px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-       text-align: var(--tabs-title-alignment, left); font: var(--fonts-tabs-unselected, 10pt monospace);
+       display: flex; align-items: center; border-radius: 999px;
+       padding: var(--tabs-padding, 0 5px); padding-left: 10px; padding-right: 10px; white-space: nowrap; overflow: hidden;
+       font: var(--fonts-tabs-unselected, 10pt monospace);
        color: var(--colors-tabs-odd-fg); background: var(--colors-tabs-odd-bg);
-       border-left: var(--tabs-indicator-width, 3px) solid transparent; }
+       transition: background 120ms; }
+  .t span { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+            text-align: var(--tabs-title-alignment, left); }
   body:not(.vertical) .t { min-width: min(var(--tabs-min-width, 0px), 100%); }
-  body.vertical .t { flex: 0 0 auto; max-width: none; }
+  body.vertical .t { flex: 0 0 auto; max-width: none; margin: 2px 6px; padding-top: 4px; padding-bottom: 4px; }
   .t:nth-child(even) { color: var(--colors-tabs-even-fg); background: var(--colors-tabs-even-bg); }
+  /* themes give inactive tabs the bar colour: tint them toward the selected tab so each pill shows */
+  .t:not(.a) { background: color-mix(in srgb, var(--colors-tabs-selected-odd-bg) 35%, var(--colors-tabs-odd-bg)); }
+  .t:not(.a):hover { background: color-mix(in srgb, var(--colors-tabs-selected-odd-bg) 70%, var(--colors-tabs-odd-bg)); }
   .t.a { font: var(--fonts-tabs-selected, 10pt monospace);
          color: var(--colors-tabs-selected-odd-fg); background: var(--colors-tabs-selected-odd-bg); }
   .t.a:nth-child(even) { color: var(--colors-tabs-selected-even-fg); background: var(--colors-tabs-selected-even-bg); }
-  .t.l { border-left-color: var(--colors-tabs-indicator-start); }
-  .t.d { border-left-color: var(--colors-tabs-indicator-stop); }
-  .t.e { border-left-color: var(--colors-tabs-indicator-error); }
+  /* load state as a ring inside the pill; a finished tab shows none */
+  .t.l { box-shadow: inset 0 0 0 2px var(--colors-tabs-indicator-start); }
+  .t.e { box-shadow: inset 0 0 0 2px var(--colors-tabs-indicator-error); }
   .t.z { opacity: .5; }
-  .t img { width: 1.2em; height: 1.2em; vertical-align: -0.25em; margin-right: .4em; }
-  body:not(.vertical) .t.n:not(.a) { flex: 0 0 auto; min-width: 0; }
-  .t img:last-child { margin-right: 0; }
+  .t img { flex: 0 0 auto; width: 1.2em; height: 1.2em; margin-right: .4em; }
+  /* pinned tabs (not the focused one, which shows its title) are circles: icon only */
+  body:not(.vertical) .t.n:not(.a) { flex: 0 0 auto; width: calc(100vh - 8px); min-width: 0;
+                                    padding: 0; justify-content: center; }
+  body:not(.vertical) .t.n:not(.a) span { flex: 0 1 auto; }
+  body:not(.vertical) .t.n:not(.a) img + span { display: none; }
+  body:not(.vertical) .t.n:not(.a) img { margin-right: 0; }
   /* Status (no status bar): mode, pending keys, message at the end; load progress as a line. */
   #tabs { display: contents; }
   /* Tabs overflow inside their own box, so many tabs can't push #info (prompts!) off the bar. */
-  body:not(.vertical) #tabs { display: flex; flex: 1 1 0; min-width: 0; overflow: hidden; }
+  body:not(.vertical) #tabs { display: flex; flex: 1 1 0; min-width: 0; overflow: hidden;
+                              gap: 4px; padding: 4px; box-sizing: border-box; }
   /* named profile, always first in the bar */
   #profile { flex: 0 0 auto; align-self: center; margin: 0 6px; padding: 1px 10px; border-radius: 999px;
              font: var(--fonts-tabs-selected, inherit); font-weight: bold;
@@ -88,7 +101,7 @@
       const d = document.createElement("div");
       d.className = "t" + (tab.a ? " a" : "") + (tab.e ? " e" : tab.l ? " l" : " d") + (tab.n ? " n" : "") + (tab.z ? " z" : "");
       if (tab.i) { const img = document.createElement("img"); img.src = tab.i; d.append(img); }
-      d.append(tab.t);
+      const label = document.createElement("span"); label.textContent = tab.t; d.append(label);
       d.onmousedown = (e) => {
         clearTimeout(tipTimer);
         if (e.button === 0) { dragFrom = i; nova.send("tab " + i); }

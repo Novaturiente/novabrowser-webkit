@@ -53,7 +53,7 @@
     for (const [k, v] of Object.entries({ all: "initial", display: "block", visibility: "visible", opacity: "1", position: "fixed",
       inset: "0", "z-index": "2147483647", "pointer-events": "none", transform: "none", filter: "none",
       // opts out of colors.webpage.darkmode, which recoloured labels on some pages only
-      "color-scheme": "only light" }))
+      "color-scheme": "only light", "-apple-color-filter": "none" }))
       host.style.setProperty(k, v, "important");
     // Closed shadow root: page CSS and scripts can't restyle or read the labels.
     const root = host.attachShadow({ mode: "closed" });

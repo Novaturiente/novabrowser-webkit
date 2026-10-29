@@ -1599,7 +1599,8 @@ fn apply_layout() {
         tabbar.set_vexpand(true);
         tabbar.set_hexpand(false);
     } else {
-        let h = theme::bar_height(&cfg, "fonts.tabs.selected", "tabs.padding");
+        // + 8: room for the pill tabs' 4 px margin above and below (ui/tabbar.html)
+        let h = theme::bar_height(&cfg, "fonts.tabs.selected", "tabs.padding") + 8;
         tabbar.set_size_request(-1, h);
         tabbar.set_hexpand(true);
         tabbar.set_vexpand(false);
