@@ -1,0 +1,20 @@
+<!doctype html>
+<!-- password test page: a login form. The title reports what the fields hold, so a test
+     can see a fill over IPC: "user=<u> pass=<p>". ?submit=<u>,<p> types those in and
+     submits (save prompt test). -->
+<title>login</title>
+<form id="f" action="/done.html" method="get">
+  <input id="u" name="username" autocomplete="username" autofocus>
+  <input id="p" name="password" type="password" autocomplete="current-password">
+  <button>Sign in</button>
+</form>
+<script>
+  const u = document.getElementById('u'), p = document.getElementById('p');
+  setInterval(() => { document.title = `user=${u.value} pass=${p.value}`; }, 100);
+  const s = new URLSearchParams(location.search).get('submit');
+  if (s) setTimeout(() => {
+    const [user, pass] = s.split(',');
+    u.focus(); u.value = user; p.focus(); p.value = pass;
+    document.getElementById('f').requestSubmit();
+  }, 800);
+</script>

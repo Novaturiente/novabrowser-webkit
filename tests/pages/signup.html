@@ -1,0 +1,12 @@
+<!doctype html>
+<!-- password test page: a sign-up form (new-password field, focused at load). The title
+     reports the password length: "new=<n>". -->
+<title>signup</title>
+<form action="/done.html" method="get">
+  <input name="email" autocomplete="username">
+  <input id="p" name="password" type="password" autocomplete="new-password" autofocus>
+</form>
+<script>
+  const p = document.getElementById('p');
+  setInterval(() => { document.title = `new=${p.value.length}`; }, 100);
+</script>

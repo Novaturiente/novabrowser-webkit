@@ -177,6 +177,7 @@ fn main() {
     let req = match argv.get(1).map(String::as_str) {
         Some("--cmd") => Some(format!("cmd {}", argv[2..].join(" "))),
         Some("--query") => Some(format!("query {}", argv.get(2).map_or("state", String::as_str))),
+        Some("--key") => Some(format!("key {}", argv[2..].join(" "))),
         _ => None,
     };
     if let Some(req) = req {

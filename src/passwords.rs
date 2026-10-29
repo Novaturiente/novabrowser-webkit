@@ -203,6 +203,12 @@ fn rows(f: &Field) -> ((i32, i32, i32, i32), Value) {
     (f.rect, serde_json::json!({ "title": b, "rows": rows }))
 }
 
+/// A navigation started: hide the list; the new page's autofocus may pop it up again.
+pub fn page_changed() {
+    FILLED_AT.set(None);
+    hide();
+}
+
 /// Safe from any signal handler: the overlay is hidden from an idle callback.
 pub fn hide() {
     if visible() {
@@ -216,7 +222,12 @@ pub fn hide() {
 }
 
 fn visible() -> bool {
-    FIELD.with_borrow(|f| f.as_ref().is_some_and(|f| !f.items.is_empty()))
+    suggestions() > 0
+}
+
+/// Rows in the suggestion list (0 = hidden), for `--query state`.
+pub fn suggestions() -> usize {
+    FIELD.with_borrow(|f| f.as_ref().map_or(0, |f| f.items.len()))
 }
 
 /// Keys while the list is shown: Down/Up select, Enter fills, Escape hides.

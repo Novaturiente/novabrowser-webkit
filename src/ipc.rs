@@ -2,7 +2,9 @@
 //! `--query state`, and `novabrowser-webkit <url>` while one runs (opens a tab).
 //!
 //! Protocol: one request line, one reply line. `cmd <line>` → `ok`; `url <text>` → `ok`
-//! (new tab, text never parsed as commands); `query state` → JSON.
+//! (new tab, text never parsed as commands); `query state` → JSON; `key <keys>` → `ok`
+//! (qutebrowser key notation, e.g. `key y` or `key <Down><Return>`: fed to the mode
+//! handler as if typed into the window; what a binding doesn't take is not sent to the page).
 //! The socket lives in the profile dir, so test profiles don't talk to the real one.
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
@@ -70,6 +72,15 @@ fn handle(line: &str) -> String {
             "ok".into()
         }
         Some(("query", "state")) => crate::window::state_json(),
+        Some(("key", k)) => match nova_core::keys::parse_keystring(k) {
+            Ok(keys) => {
+                for key in keys {
+                    crate::modes::on_key(key);
+                }
+                "ok".into()
+            }
+            Err(e) => format!("error: {e}"),
+        },
         _ => format!("error: unknown request {line:?}"),
     }
 }

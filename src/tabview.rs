@@ -68,7 +68,7 @@ pub fn connect(view: &WebView) {
     });
     view.connect_load_changed(|v, ev| match ev {
         LoadEvent::Started => {
-            crate::passwords::hide();
+            crate::passwords::page_changed();
         }
         LoadEvent::Committed => {
             window::set_loading(v, true);
