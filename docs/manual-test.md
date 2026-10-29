@@ -100,8 +100,34 @@ Write down anything that fails as: item number, what you did, what happened.
 - 7.16 Answer `A` then reload: no second question; check `permissions.json`.
 - 7.17 confirm(), prompt() (`y` returns the default), beforeunload on reload and close.
 - 7.18 https://expired.badssl.com and https://self-signed.badssl.com: prompt; `y` loads it.
-- 7.19 `<Space>td` on a white site: dark; images look normal; internal pages unchanged.
+- 7.19 `<Space>td` on a white site: dark; images look normal; internal pages unchanged. On a light site with a dark header or dark code blocks (GitHub with a light system theme, MDN, a blog): those parts stay dark. A site already dark (GitHub with a dark system theme) is left alone. Look at the sites you use most.
 - 7.20 `:set spellcheck.languages '["en_US"]'`: misspellings underlined in a text field.
+
+## Phase 8 — sessions and daily driving
+
+- 8.2 Restart with a tab that was scrolled down and has back history: same scroll, `H` goes back.
+- 8.6 `:set tabs.hibernate_after 1`, wait 2 minutes: background tabs dim in the tab bar; a tab playing audio or with typed text stays awake.
+- 8.8 `gD` on a playing video: it keeps playing in the new window (no reload).
+- 8.9 Hover a tab: tooltip after a moment. Right-click a tab: menu; try each entry; j/k/Enter/Esc.
+- 8.10 Drag a tab; drag a pinned tab: it stays in the pinned group.
+- 8.11 Play audio in a background tab: indicator; `Alt-m` mutes.
+- 8.13 `Sb` / `Sq`: edit a name, delete an entry, a bad URL is refused.
+- 8.14 / 8.15 Download a big file: pill `↓ 1 · P%`, finished message; `:download-open 1`; `:download-cancel` on a running one.
+- 8.16 With `downloads.backend aria2`: a magnet link, quit mid-download and restart (it resumes), cancel (partial file removed).
+- 8.17 Right-click a link, an image, a video, selected text: each menu entry.
+- 8.18 `<Space>i` (devtools): Web Inspector in its own window.
+- 8.19 Fullscreen a YouTube video: it fills the window, not the screen.
+- 8.20 `:profile-new work`: new window with a `[work]` pill; logins there are separate.
+- 8.21 `:open -p`: window marked private; after closing it, nothing in history.
+- 8.23 `--import` alone lists your browsers; import one; run it again: no duplicates.
+
+## Phase 10 — passwords (with your real vault)
+
+- 10.1 Default backend rbw: locked vault shows "rbw is locked", picking it unlocks. TOTP: `:password-fill --otp` on a 2FA page.
+- 10.3 Click a row in the suggestion list.
+- 10.6 Sign in to a site not in the vault: save prompt; `y`; check the vault. Change a password: update prompt.
+- 10.7 rbw edit opens through novabrowser as `$VISUAL`.
+- 10.8 A login inside an iframe gets nothing (WebKit edition fills the top frame only).
 
 ## Spikes needing a person
 

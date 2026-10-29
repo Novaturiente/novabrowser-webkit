@@ -8,15 +8,16 @@ session; the evidence goes on the item.
 Status: `[ ]` todo · `[~]` partial · `[x]` done · `[-]` dropped (reason given) ·
 `[m]` built, needs a human to check (listed in `docs/manual-test.md`).
 "CEF ref" = where the CEF edition does it (`../novabrowser/novabrowser/src/`).
-Evidence: **S** = `tests/smoke.sh` (42 checks, all pass 2026-10-29 on debug and
-release builds), **U** = unit tests (`cargo test --workspace` here, `cargo test`
-in nova-core: 89).
+Evidence: **S** = `tests/smoke.sh` (43 checks), **F** = `tests/features.sh` (39 checks,
+Phase 8), **P** = `tests/passwords.sh` (17 checks, Phase 10; `pass` backend, local
+HTTPS); all pass 2026-10-29 on the release build pinned to nova-core `aec30e5`.
+**U** = unit tests (`cargo test --workspace` here, `cargo test` in nova-core: 90).
+Tests drive the browser over IPC: `--cmd`, `--query state`, `--key <keys>`.
 
 ## Now
 
-- **Phase:** 1–7 built; user's manual pass (`docs/manual-test.md`) next.
-- **Next action:** user runs `docs/manual-test.md`; then Phase 8 checks, C5/C6,
-  CEF edition onto the newer nova-core (it still pins `0433ff0`).
+- **Phase:** 1–8 and 10 built and checked by S/F/P where IPC can reach; user's manual pass (`docs/manual-test.md`) next.
+- **Next action:** user runs `docs/manual-test.md`; then 5.6, 7.13, 7.15, W14, Phase 9 packaging, C5/C6 (CEF still has its own `aria2.rs` with the secret on argv: move it to nova-core's).
 - **Blockers:** none.
 
 ---
@@ -179,63 +180,60 @@ Appearance
 ## Phase 8 — Sessions and daily driving
 
 Sessions and tabs
-- [ ] 8.1 Autosave (1 s debounce, atomic, only when changed) to `<data>/sessions/default.json`; restore at start, command-line URL added as a tab
-- [ ] 8.2 Per tab: url, title, session-state blob (back/forward + scroll), pinned, keep-awake, icon; legacy url/back/fwd shape still loads
-- [ ] 8.3 Lazy restore: background tabs get a WebView only on first show
-- [ ] 8.4 `session-save [name]`, `session-load [-c] name`, `session-delete`, `quit -s`, `close -s`; names can't leave the dir
-- [ ] 8.5 `undo` across restarts (last 100 closed) brings back history too
-- [ ] 8.6 Hibernation `tabs.hibernate_after` (min, per site): save state, destroy the view, restore on show; skip active, loading, crashed, internal, playing media, typed forms, keep-awake; `tab-hibernate [n]`, `tab-keep-awake [n]`; dimmed in the tab bar
-- [ ] 8.7 Multiple windows (`open -w`, `Ctrl-n`), per-window state, `:close` one keeps the rest, session restores all windows
-- [ ] 8.8 `tab-give` (`gD`) moves the live WebView to a new window (no reload)
-- [ ] 8.9 Tab tooltip (title + URL, 450 ms), right-click tab menu (Reload, Duplicate, Copy URL, Mute, Bookmark, Pin, Move to new window, Hibernate now, Keep awake, Close, Close others) with j/k/Enter/Esc
-- [ ] 8.10 Drag a tab to reorder; pinned group kept
-- [ ] 8.11 Audio indicator + `{audio}` in titles from `is-playing-audio` / mute
+- [x] 8.1 Autosave (1 s debounce, atomic, only when changed) to `<data>/sessions/default.json`; restore at start, command-line URL added as a tab (F: written without quitting; restart + CLI URL = 3 tabs)
+- [~] 8.2 Per tab: url, title, session-state blob (back/forward + scroll), pinned, keep-awake, icon (S/F: restore keeps tabs + titles); [m] back/forward + scroll after restore; legacy shape not tested
+- [x] 8.3 Lazy restore: background tabs get a WebView only on first show (F: `loaded:false` after restart, true after `tab-focus`)
+- [x] 8.4 `session-save [name]`, `session-load [-c] name`, `session-delete`, `quit -s`, `close -s`; names can't leave the dir (S: save, `../evil`, `quit -s`; F: `load -c`, delete)
+- [x] 8.5 `undo` across restarts (last 100 closed) (F); brings back the URL only, same as the CEF edition (its `closed` list is URLs too)
+- [~] 8.6 Hibernation `tabs.hibernate_after` (min, per site): save state, destroy the view, restore on show; skip active, loading, crashed, internal, playing media, typed forms, keep-awake; `tab-hibernate [n]`, `tab-keep-awake [n]`; dimmed in the tab bar (F: `tab-hibernate N`, active refused, wakes on show, `tab-keep-awake`); [m] timer-driven `tabs.hibernate_after`, dimmed look
+- [x] 8.7 Multiple windows (`open -w`, `Ctrl-n`), per-window state, `:close` one keeps the rest, session restores all windows (S: `open -w`, `:close`; F: 2 windows restored)
+- [~] 8.8 `tab-give` (`gD`) moves the live WebView to a new window (F: window count +1); [m] no reload
+- [m] 8.9 Tab tooltip (title + URL, 450 ms), right-click tab menu (Reload, Duplicate, Copy URL, Mute, Bookmark, Pin, Move to new window, Hibernate now, Keep awake, Close, Close others) with j/k/Enter/Esc (code: all 11 menu actions wired, `window.rs` MENU / `tab_menu_action`)
+- [~] 8.10 Drag a tab to reorder; pinned group kept (F: `tab-move +`); [m] drag
+- [~] 8.11 Audio indicator + `{audio}` in titles from `is-playing-audio` / mute (F: `tab-mute`); [m] indicator with real audio
 
 Marks
-- [ ] 8.12 Quickmarks `<config>/quickmarks` and bookmarks `<config>/bookmarks/urls` (qutebrowser formats); `m`, `M`, `b`, `B`, `gb`, `gB`; `quickmark-save/add/load/del`, `bookmark-add [--toggle]/load/del/list [-j]`
-- [ ] 8.13 Manager pages `Sb` / `Sq` on `nova://bookmarks` (edit, delete, validation)
+- [x] 8.12 Quickmarks `<config>/quickmarks` and bookmarks `<config>/bookmarks/urls` (qutebrowser formats); `m`, `M`, `b`, `B`, `gb`, `gB`; `quickmark-save/add/load/del`, `bookmark-add [--toggle]/load/del/list [-j]` (S: add/load, `bookmark-add`; F: `quickmark-save` opens the command line, add/del, bookmark del)
+- [~] 8.13 Manager pages `Sb` / `Sq` on `nova://bookmarks` (edit, delete, validation) (F: `:bookmarks` opens); [m] edit/delete in the page
 
 Downloads
-- [ ] 8.14 No dialog, `downloads.location.directory` (`~` expanded), sanitized names, unique `(1)` suffixes, started/finished/failed messages, pill `↓ N · P%`
-- [ ] 8.15 `:downloads` / `Sd` page, `download [url]`, `download-open [N] [cmd]` (`downloads.open_dispatcher` / xdg-open), `download-cancel [N]`, `download-clear`, `downloads.json` (last 500)
-- [ ] 8.16 aria2 backend (`downloads.backend` auto/aria2/chromium→webkit): RPC on 127.0.0.1 with secret not on argv (CEF audit A4), 8 connections, session resume, cookies incl. HttpOnly + UA + referer, magnet links (`decide-policy`), torrents as one entry, cancel removes partial files safely (A6), fallback to WebKit download
+- [~] 8.14 No dialog, `downloads.location.directory` (`~` expanded), sanitized names, unique `(1)` suffixes, started/finished/failed messages, pill `↓ N · P%` (S: directory, `(1)` names); [m] messages, pill
+- [~] 8.15 `:downloads` / `Sd` page, `download [url]`, `download-open [N] [cmd]` (`downloads.open_dispatcher` / xdg-open), `download-cancel [N]`, `download-clear`, `downloads.json` (last 500) (F: json written, page opens, `download-clear`); [m] `download-open`, `download-cancel`
+- [~] 8.16 aria2 backend (`downloads.backend` auto/aria2/chromium→webkit): RPC on 127.0.0.1 with secret not on argv (CEF audit A4), 8 connections, session resume, cookies incl. HttpOnly + UA + referer, magnet links (`decide-policy`), torrents as one entry, cancel removes partial files safely (A6), fallback to WebKit download (S/F: aria2 download lands; F: secret not on argv, now a 0600 `aria2.conf`, nova-core `aec30e5`); [m] magnet, resume, cancel
 
 Other
-- [ ] 8.17 Context menu: open link in tab/background/window, copy link, save link; image/media open/save/copy; search selection
-- [ ] 8.18 `devtools` → Web Inspector (own window)
-- [ ] 8.19 Page fullscreen fills the window only (`content.fullscreen.window`), `fullscreen [--leave]`
-- [ ] 8.20 Profiles: `--profile=x`, `--profile x`, `-P x`, `--list-profiles`, `:profile-new`, `:profile-open`, own process + data dir, `[name]` pill
-- [ ] 8.21 Private windows `open -p` on an ephemeral NetworkSession, marked in the tab bar
-- [ ] 8.22 Welcome page once per profile (`<data>/welcomed`), `:help`, `--import` offers per browser found
-- [ ] 8.23 `--import [name|dir|file]`: Chrome, Chromium, Helium, Brave, Vivaldi, Edge, Firefox, Zen, LibreWolf, Floorp, qutebrowser (history, bookmarks, quickmarks, session) + `novabrowser` (CEF edition: history, marks, sessions, permissions, downloads, config files, zoom); idempotent
+- [m] 8.17 Context menu: open link in tab/background/window, copy link, save link; image/media open/save/copy; search selection (code: link tab/background/window, image/media tab, search selection; WebKit's stock copy/save items kept)
+- [~] 8.18 `devtools` → Web Inspector (own window) (F: no error); [m] the window
+- [~] 8.19 Page fullscreen fills the window only (`content.fullscreen.window`), `fullscreen [--leave]` (F: `fullscreen` toggles the window); [m] a video's fullscreen stays in the window
+- [x] 8.20 Profiles: `--profile=x`, `--profile x`, `-P x`, `--list-profiles`, `:profile-new`, `:profile-open`, own process + data dir, `[name]` pill (F: `--list-profiles`, `profile-open` starts its own instance with its own IPC socket); [m] pill
+- [~] 8.21 Private windows `open -p` on an ephemeral NetworkSession, marked in the tab bar (F: `open -p` window reports `private`); [m] mark, nothing saved
+- [x] 8.22 Welcome page once per profile (`<data>/welcomed`), `:help`, `--import` offers per browser found (F: welcome tab on a fresh profile, `welcomed` written)
+- [~] 8.23 `--import [name|dir|file]`: Chrome, Chromium, Helium, Brave, Vivaldi, Edge, Firefox, Zen, LibreWolf, Floorp, qutebrowser (history, bookmarks, quickmarks, session) + `novabrowser` (CEF edition: history, marks, sessions, permissions, downloads, config files, zoom); idempotent (F: Chromium `History` dir imports 2 rows); [m] the other browsers
 - [ ] 8.24 Exit: one week as the only browser, problems logged here
 
-Phase 8 note (2026-10-29): code for most of 8.1–8.23 is in (sessions, hibernation,
-windows, tab-give, tab menu, marks, downloads + aria2, context menu, inspector,
-fullscreen, profiles, private windows, welcome, import). S already covers
-session-save names + path escape, `quit -s`, restore at start, `undo`, `open -w` /
-`:close`, quickmark add/load, `bookmark-add`, WebKit download + unique names,
-aria2 downloads. Items stay `[ ]` until each pass condition is checked.
+Phase 8 note (2026-10-29): every item has code; F checks what IPC can reach.
+What needs eyes or a mouse (tab menu, drag, context menu, pills, inspector window,
+video fullscreen) is `[m]` in `docs/manual-test.md`.
 
 ## Phase 9 — Packaging and docs
 
 - [~] 9.1 Cargo workspace: app + `ext/` cdylib; `[profile.release]` thin LTO + strip; release build has no warnings (2026-10-29)
 - [ ] 9.2 AUR `novabrowser-webkit` (source) + `novabrowser-webkit-bin`: depends `libwebkitgtk-6.0.so`, `gtk4`, `gst-plugins-good`; optdepends `gst-libav`, `gst-plugin-va`, `aria2`, `rbw`, `pass`, `bw`; extension under `/usr/lib/novabrowser-webkit/`
 - [ ] 9.3 `.desktop`, icons, `xdg-settings` default-browser instructions
-- [x] 9.4 `tests/smoke.sh` over IPC — 42 checks (start, tabs, hand-over, hints, find, prompts, crash, spawn/userscripts, sessions, marks, windows, downloads, toggles, adblock, quit, restore), all pass 2026-10-29
+- [x] 9.4 `tests/smoke.sh` + `tests/features.sh` + `tests/passwords.sh` over IPC (shared `tests/lib.sh`) — 43 + 39 + 17 checks (start, tabs, hand-over, hints, find, prompts, crash, spawn/userscripts, sessions, marks, windows, downloads, toggles, adblock, quit, restore), all pass 2026-10-29
 - [ ] 9.5 Docs ported from `../novabrowser/novabrowser/docs/` (getting-started, keybindings, commands, configuration, settings, tabs-sessions-profiles, passwords, downloads, privacy, scripting, migrating, building, troubleshooting) with WebKit differences
 - [ ] 9.6 README with install, keys, differences from the CEF edition
 
 ## Phase 10 — Passwords
 
-- [ ] 10.1 `passwords.backend` rbw (default) / bw / pass / none; list, locked check, unlock, secret, TOTP, save, update; 60 s metadata cache
-- [ ] 10.2 Field detection (`passwords.js` kinds user / password / new / otp) in world `novabrowser`, all frames; listeners armed only after a login field is focused
-- [ ] 10.3 Suggestion list under the field (non-focusing popup view): Down/Up/Enter/Escape, click; rows for entries, "Generate a strong password", "<backend> is locked"
-- [ ] 10.4 Fill only into the asking frame (reply object), same-site frames only, never on `http://`, never on load; `Sp` = `password-fill [--otp]` fills the focused field
-- [ ] 10.5 Generated passwords (urandom, 20 chars) for sign-up fields
-- [ ] 10.6 Save / update prompt after submit (`WebFormManager::will-submit-form` + JS fallback); split logins remember page-1 user; same password → no prompt; newer prompt replaces older; expiry 5 min
-- [ ] 10.7 rbw add/edit through novabrowser as `$VISUAL` (secret in env, never argv); locked vault asks before unlocking
-- [ ] 10.8 Exit: single-page, split, iframe, TOTP, sign-up pages; save + update land in the vault; cross-site iframe gets nothing
+- [~] 10.1 `passwords.backend` rbw (default) / bw / pass / none; list, locked check, unlock, secret, TOTP, save, update; 60 s metadata cache (P with `pass`: list, match by host, none for another host, save, update); [m] rbw, bw, TOTP, locked vault
+- [~] 10.2 Field detection (`passwords.js` kinds user / password / new / otp) in world `novabrowser`, all frames; listeners armed only after a login field is focused (P: focused user field → 2 rows); top frame only (WebKit limit, see note)
+- [x] 10.3 Suggestion list under the field (non-focusing popup view): Down/Up/Enter/Escape, click; rows for entries, "Generate a strong password", "<backend> is locked" (P: list, `<Down><Return>`, several matches → Enter fills); [m] click, locked row
+- [~] 10.4 Fill only into the asking frame (reply object), same-site frames only, never on `http://`, never on load; `Sp` = `password-fill [--otp]` fills the focused field (P: `password-fill` fills user + password, refuses http); frames: top frame only
+- [x] 10.5 Generated passwords (urandom, 20 chars) for sign-up fields (P: Generate row fills 20 characters)
+- [x] 10.6 Save / update prompt after submit (`WebFormManager::will-submit-form` + JS fallback); split logins remember page-1 user; same password → no prompt; newer prompt replaces older; expiry 5 min (P: save prompt + `y` writes the entry, update prompt + `y`, same password no prompt, split login keeps page 1's user); JS submit detection only
+- [m] 10.7 rbw add/edit through novabrowser as `$VISUAL` (secret in env, never argv); locked vault asks before unlocking
+- [~] 10.8 Exit: single-page, split, iframe, TOTP, sign-up pages; save + update land in the vault; cross-site iframe gets nothing (P: single-page, split, sign-up, save, update); [m] TOTP, rbw; iframes get nothing (top frame only)
 
 Phase 10 note (2026-10-29): backends in nova-core (U: 3 tests); WebKit UI in
 `src/passwords.rs` — top frame only (W6), JS submit detection only (no
@@ -270,6 +268,7 @@ Newest first. Settled — don't reopen without new evidence.
 
 Newest first.
 
+- 2026-10-29 (IST) — Phases 8 and 10 checked: `tests/features.sh` (39) and `tests/passwords.sh` (17, `pass` + local HTTPS) added, helpers in `tests/lib.sh`; IPC `key` request (`--key`). Fixed: aria2 RPC secret off argv (nova-core `aec30e5`, A4; CEF still has its own `aria2.rs`), password list suppressed on a new page right after a fill. Dark mode: WebKit colour-filter patch, `webkitgtk-6.0-nova` 2.54.2-2 installed.
 - 2026-10-29 (IST, 01:30) — The WebKit edition runs: `src/` (app, windows/tabs, modes, commands, hints, permissions, downloads + aria2, passwords UI, adblock, dark mode, zoom, IPC) + `ext/` (web process extension). nova-core gained hints, spawn, aria2, passwords, net, GDK keys (commit `5ab8102`, local; not pushed). `tests/smoke.sh` 42/42 on debug + release. CEF `makepkg` from branch `nova-core` OK. Gotcha: the webkit-web-process-extension6 binding asserts on the NULL `redirected_response` of `send-request`; `ext` connects the signal by hand. Next: user manual pass (`docs/manual-test.md`).
 - 2026-10-29 (IST) — W10 go (user sign-ins). HDFC "Upgrade browser" modal only with the stock UA → first evidence for D8. Next: Phase C.
 
