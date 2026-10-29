@@ -858,7 +858,9 @@ pub fn run_in_tab(id: usize, f: impl FnOnce()) -> bool {
 pub fn state_json() -> String {
     S.with_borrow(|s| {
         json!({
-            "tabs": s.tabs.iter().map(|t| json!({"url": t.url, "title": t.title, "pinned": t.pinned, "loaded": t.view.is_some(), "crashed": t.crashed.is_some(), "asleep": t.asleep})).collect::<Vec<_>>(),
+            "tabs": s.tabs.iter().map(|t| json!({"url": t.url, "title": t.title, "pinned": t.pinned, "loaded": t.view.is_some(), "crashed": t.crashed.is_some(), "asleep": t.asleep, "muted": t.muted, "keep": t.keep})).collect::<Vec<_>>(),
+            "private": s.private,
+            "fullscreen": s.window.as_ref().is_some_and(|w| w.is_fullscreen()),
             "active": s.active,
             "url": s.tabs.get(s.active).map(|t| t.url.as_str()),
             "mode": modes::mode_name(),
