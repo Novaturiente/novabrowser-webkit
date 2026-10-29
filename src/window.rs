@@ -9,6 +9,7 @@ use gtk::glib;
 use serde_json::{json, Map, Value};
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::time::Duration;
 use webkit6::prelude::*;
 use webkit6::WebView;
@@ -1384,18 +1385,49 @@ fn completion_icons(json: &str) {
         return;
     };
     let slot = CUR.get();
+    let rows = Rc::new(urls.clone());
     for u in urls {
         if ICONS.with_borrow(|c| c.contains_key(&u)) {
             continue;
         }
         ICONS.with_borrow_mut(|c| c.insert(u.clone(), String::new()));
-        db.favicon(&u.clone(), None::<&gtk::gio::Cancellable>, move |r| {
-            let Ok(t) = r else { return };
-            let data = format!("data:image/png;base64,{}", glib::base64_encode(&t.save_to_png_bytes()));
-            ICONS.with_borrow_mut(|c| c.insert(u.clone(), data.clone()));
-            in_slot(slot, || palette_js(&format!("nova.icons({})", json!({ u: data }))));
-        });
+        // the page itself, else the site's home page (most visited pages here were never
+        // opened in this edition: imported history has no icons)
+        let root = u.find("://").and_then(|i| u[i + 3..].find('/').map(|j| u[..i + 3 + j + 1].to_string()));
+        let tries: Vec<String> = std::iter::once(u.clone()).chain(root.filter(|r| *r != u)).collect();
+        icon_lookup(db.clone(), tries, u, rows.clone(), slot);
     }
+}
+
+fn site_of(u: &str) -> &str {
+    u.split('/').nth(2).unwrap_or("")
+}
+
+/// Try each page URL in `tries` for `row`'s icon. A found icon also goes to the shown rows
+/// of the same site that have none.
+fn icon_lookup(db: webkit6::FaviconDatabase, mut tries: Vec<String>, row: String, rows: Rc<Vec<String>>, slot: usize) {
+    if tries.is_empty() {
+        return;
+    }
+    let page = tries.remove(0);
+    let db2 = db.clone();
+    db.favicon(&page, None::<&gtk::gio::Cancellable>, move |r| {
+        let Ok(t) = r else {
+            return icon_lookup(db2, tries, row, rows, slot);
+        };
+        let data = format!("data:image/png;base64,{}", glib::base64_encode(&t.save_to_png_bytes()));
+        let site = site_of(&row).to_string();
+        let mut out = Map::new();
+        ICONS.with_borrow_mut(|c| {
+            for u in rows.iter().filter(|u| **u == row || site_of(u) == site) {
+                if c.get(u).is_none_or(|d| d.is_empty()) {
+                    c.insert(u.clone(), data.clone());
+                    out.insert(u.clone(), Value::from(data.clone()));
+                }
+            }
+        });
+        in_slot(slot, || palette_js(&format!("nova.icons({})", Value::Object(out))));
+    });
 }
 
 /// Full content area, or a top strip one input tall when compact.

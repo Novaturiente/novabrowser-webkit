@@ -33,20 +33,25 @@
   #cmd { flex: 1; min-width: 0; box-sizing: border-box; padding: 0; border: 0; outline: 0;
          background: transparent; color: var(--colors-statusbar-command-fg, inherit);
          font: var(--fonts-statusbar, 11pt monospace); font-size: 1.15em; }
-  #list { position: relative; max-height: var(--palette-list-height, 40vh); overflow-y: auto; scrollbar-width: none;
+  /* the cards share the height; a big one scrolls inside itself, so every card keeps its
+     rounded border (the list cut the last card off square) */
+  #list { position: relative; max-height: var(--palette-list-height, 40vh); overflow: hidden;
           display: flex; flex-direction: column; gap: 10px;
           /* room for the cards' shadows inside the scroll box, which clips them */
           padding: 0 18px 24px; margin: 0 -18px; }
   #list:empty { display: none; }
   body.tall #list { max-height: 70vh; }
-  .grp { position: relative; padding: 4px 6px 6px; border-radius: 18px;
+  .grp { position: relative; flex: 0 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: none;
+         padding: 0 6px 6px; border-radius: 18px; scroll-padding: 36px 0 8px;
          background: var(--colors-completion-even-bg, #222);
          border: 1px solid var(--colors-completion-category-border-top, #444);
          box-shadow: 0 6px 16px rgba(0, 0, 0, .35); }
-  .cat { display: flex; gap: 8px; padding: 6px 10px 4px; font: var(--fonts-completion-category, bold 10pt monospace);
+  .grp.small { flex-shrink: 0; }
+  .cat { position: sticky; top: 0; z-index: 3; display: flex; gap: 8px; padding: 10px 10px 4px;
+         background: var(--colors-completion-even-bg, #222); font: var(--fonts-completion-category, bold 10pt monospace);
          color: var(--colors-completion-category-fg); }
   .cat small { font: inherit; font-weight: normal; opacity: .6; }
-  /* the selection highlight slides between rows, across cards (positioned in #list) */
+  /* the selection highlight slides between rows (positioned in the selected row's card) */
   #hl { position: absolute; left: 0; top: 0; z-index: 1; border-radius: 10px; pointer-events: none;
         background: var(--colors-completion-item-selected-bg);
         box-shadow: inset 3px 0 0 var(--colors-completion-category-fg, #48f);
@@ -118,8 +123,9 @@
       }
       grp.append(row);
     });
+    // short cards keep their size; the long ones shrink and scroll
+    for (const g of groups) g.classList.toggle("small", g.querySelectorAll(".row").length <= 4);
     list.replaceChildren(...groups);
-    if (groups.length) list.append(hl);
     if (s) select(s.sel, false);
   };
   const select = (sel, slide) => {
@@ -128,12 +134,15 @@
     const r = rows[sel];
     hl.style.display = r ? "" : "none";
     if (!r) return;
-    const lr = list.getBoundingClientRect(), rr = r.getBoundingClientRect();
+    const g = r.parentElement;
+    // into another card: no slide (the cards scroll on their own)
+    if (hl.parentElement !== g) { g.append(hl); slide = false; }
+    r.scrollIntoView({ block: "nearest" });
+    const lr = g.getBoundingClientRect(), rr = r.getBoundingClientRect();
     hl.classList.toggle("jump", !slide);
     hl.style.width = rr.width + "px";
     hl.style.height = rr.height + "px";
-    hl.style.transform = `translate(${rr.left - lr.left}px, ${rr.top - lr.top + list.scrollTop}px)`;
-    r.scrollIntoView({ block: "nearest" });
+    hl.style.transform = `translate(${rr.left - lr.left - g.clientLeft}px, ${rr.top - lr.top - g.clientTop + g.scrollTop}px)`;
   };
   // nova.icons({url: data-url}): fill in site icons as WebKit's icon store answers
   nova.icons = (m) => {
