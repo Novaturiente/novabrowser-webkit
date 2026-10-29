@@ -1,0 +1,16 @@
+[Desktop Entry]
+Type=Application
+Name=novabrowser (WebKit)
+GenericName=Web Browser
+Comment=Keyboard-driven web browser on WebKitGTK
+Exec=novabrowser-webkit %U
+Icon=novabrowser-webkit
+Terminal=false
+Categories=Network;WebBrowser;
+MimeType=text/html;application/xhtml+xml;x-scheme-handler/http;x-scheme-handler/https;
+StartupWMClass=novabrowser-webkit
+Actions=new-window;
+
+[Desktop Action new-window]
+Name=New Window
+Exec=novabrowser-webkit
