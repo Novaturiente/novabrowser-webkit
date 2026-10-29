@@ -66,6 +66,6 @@ package() {
     install -Dm644 packaging/icons/novabrowser-webkit-$s.png "$pkgdir/usr/share/icons/hicolor/${s}x${s}/apps/novabrowser-webkit.png"
   done
   install -Dm644 README.md "$pkgdir/usr/share/doc/novabrowser-webkit/README.md"
-  install -Dm644 docs/*.md -t "$pkgdir/usr/share/doc/novabrowser-webkit/docs/"
+  cp -r docs "$pkgdir/usr/share/doc/novabrowser-webkit/"
   install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }

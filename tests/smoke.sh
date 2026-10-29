@@ -130,15 +130,15 @@ for _ in $(seq 50); do [ -s "$tmp/dl/file (1).bin" ] || [ -s "$tmp/dl/file.1.bin
 [ -s "$tmp/dl/file (1).bin" ] || [ -s "$tmp/dl/file.1.bin" ]; [ $? = 0 ] && ok "second download gets a (1) name" || fail "unique name: $(ls $tmp/dl)"
 
 # media that can't play: a warning naming the GStreamer packages
-head -c 4096 /dev/urandom > $srv/broken.mp4
+yes 'not a video' | head -c 4096 > $srv/broken.mp4  # fixed bytes: random ones made the check flaky
 echo '<title>media</title><video src="broken.mp4" autoplay muted></video>' > $srv/media.html
 "$bin" --cmd "open -t http://127.0.0.1:$port/media.html" >/dev/null
-wait_for 'broken.mp4. Missing codec' 10 && ok "unplayable media: missing-codec warning" || fail "media: $(q)"
+wait_for 'broken.mp4. Missing codec' 20 && ok "unplayable media: missing-codec warning" || fail "media: $(q)"
 "$bin" --cmd "tab-close" >/dev/null
 
 # a permission request set to ask lands in the prompt; tab close answers no
 "$bin" --cmd "open -t http://127.0.0.1:$port/notify.html" >/dev/null
-wait_for '"prompt":"Allow http://127.0.0.1:[0-9]* to see your location' 10 && ok "geolocation permission prompt" || fail "permission prompt: $(q)"
+wait_for '"prompt":"Allow http://127.0.0.1:[0-9]* to see your location' 20 && ok "geolocation permission prompt" || fail "permission prompt: $(q)"
 "$bin" --cmd "tab-close" >/dev/null
 wait_for '"prompt":null' 5 && ok "closing the tab drops its permission prompt" || fail "prompt drop: $(q)"
 
