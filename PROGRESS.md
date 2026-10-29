@@ -38,7 +38,7 @@ Tests drive the browser over IPC: `--cmd`, `--query state`, `--key <keys>`.
 - [x] W11 permissions, TLS errors, JS dialogs — S: geolocation prompt, alert prompt, both dropped on tab close; TLS [m]
 - [ ] W12 headless PGO training on novahome
 - [x] W13 Dark Reader overhead, measured 2026-10-29 (`spikes/w9-baseline/ab-darkreader.sh`, Safari identity, 3 interleaved rounds, AC): off 26.7/26.8/26.8, Dark Reader 16.0/15.5/15.6 (**−42%**), inverting CSS 23.3/23.6/23.5 (**−12%**). Both fail the 3% rule (CSS invert also left text unreadable, user). WebKit's own colour filter (`-apple-color-filter`, feature `ColorFilter`, no WebKit rebuild needed): off 26.9/26.6/26.8 vs on 27.1/25.0/27.0, no measurable cost → shipped (D6). Dark Reader removed.
-- [ ] W14 real-site perf: scroll, idle RSS, startup vs CEF
+- [~] W14 real-site perf vs CEF (`spikes/w14/compare.py`, results/w14.json, 2026-10-29): startup to first local page median 0.312 s vs CEF 0.298 s; 5 real sites, PSS of the process tree 1556 MB (other runs 1433, 1924) vs CEF ~940 MB. Without the adblock extension 1564 MB: the gap is WebKit's page processes, not adblock (closes W7's RSS question). Fixed: chrome views now share one web process (was 5 per window). [m] scrolling feel
 
 ## Phase C — nova-core (PLAN.md §5)
 
@@ -127,7 +127,7 @@ Tests drive the browser over IPC: `--cmd`, `--query state`, `--key <keys>`.
 - [m] 5.3 `--check-config`
 - [x] 5.4 `:set` persists to `autoconfig.json` (S), validation (U); [m] precedence with config.ts
 - [x] 5.5 Per-site `pattern()` (U); `content.user_agent` added per site
-- [~] 5.6 Schema: added `webkit.hardware_acceleration`, `webkit.site_specific_quirks`, `webkit.itp`, `content.user_agent`, `downloads.backend=webkit`. Left: dropping `chromium.*` etc. from the WebKit schema (shared table; gate per edition)
+- [x] 5.6 Schema: added `webkit.hardware_acceleration`, `webkit.site_specific_quirks`, `webkit.itp`, `content.user_agent`, `downloads.backend=webkit`. Per edition: `settings::other_edition` — `:set chromium.*` refused in WebKit, `webkit.*` in CEF; config.ts may still set them (one file, ignored) (S, U)
 - [x] 5.7 Every colour setting covered by every preset (U: `theme::preset_tests`); [m] reaches chrome views and pages
 - [m] 5.8 `fonts.web.*`, `colors.webpage.bg`; `preferred_color_scheme` not wired yet
 - [m] 5.9 `:settings` page
@@ -164,11 +164,11 @@ Cookies, headers, network privacy
 - [m] 7.10 `content.cookies.accept` via CookieManager, ITP
 - [m] 7.11 Custom headers / DNT in `send-request` (page-level values: shortcut, see ext)
 - [~] 7.12 Accept-Language, autoplay via `media_playback_requires_user_gesture`; hyperlink auditing / DNS prefetch setters are deprecated no-ops in 2.50+ [m]
-- [ ] 7.13 Idle network capture
+- [x] 7.13 Idle network capture (`tests/idle-net.py`, 2026-10-29): fresh profile 90 s on about:blank = only `curl` fetching the adblock lists; second start with lists cached = 0 peers. Polls /proc every 0.1 s (no root); DNS via systemd-resolved not visible
 
 Prompts and permissions
 - [x] 7.14 Tab-bar prompt queue, Escape = no, grace period 400 ms (U), dropped when its tab closes (S)
-- [~] 7.15 geolocation prompt (S); notifications, mic, camera, screen, clipboard, pointer lock, storage access, device info [m]; missing-plugins message not built
+- [~] 7.15 geolocation prompt (S); notifications, mic, camera, screen, clipboard, pointer lock, storage access, device info [m]; missing codec: media `error` events (decode / not supported) give "Missing codec? Install gst-libav and gst-plugins-bad." (S: broken .mp4); WebKitGTK 6 has no missing-plugin signal
 - [x] 7.16 true/false/ask per origin, saved A/N in `permissions.json`, saved notification answers given to WebKit at start
 - [~] 7.17 alert in the prompt (S); confirm / prompt / beforeunload [m]
 - [~] 7.18 TLS error → a prompt (not a `nova://` page); yes = `allow_tls_certificate_for_host` + reload [m]

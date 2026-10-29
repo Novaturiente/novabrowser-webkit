@@ -1,0 +1,34 @@
+{
+ "date": "2026-10-29 11:43",
+ "sites": [
+  "https://en.wikipedia.org/wiki/Rust_(programming_language)",
+  "https://github.com/WebKit/WebKit",
+  "https://news.ycombinator.com/",
+  "https://stackoverflow.com/questions/11227809",
+  "https://www.bbc.com/news"
+ ],
+ "webkit": {
+  "startup_s": [
+   0.327,
+   0.309,
+   0.321,
+   0.312,
+   0.302
+  ],
+  "startup_median_s": 0.312,
+  "pss_mb_5_sites": 1556,
+  "processes": 51
+ },
+ "cef": {
+  "startup_s": [
+   0.298,
+   0.302,
+   0.294,
+   0.282,
+   0.305
+  ],
+  "startup_median_s": 0.298,
+  "pss_mb_5_sites": 946,
+  "processes": 19
+ }
+}

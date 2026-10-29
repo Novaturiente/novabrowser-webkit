@@ -275,6 +275,11 @@ pub fn page_view(related: Option<&WebView>, private: bool) -> WebView {
     view
 }
 
+thread_local! {
+    /// A live chrome view; new ones are created related to it (same web process).
+    static CHROME_PROC: RefCell<glib::WeakRef<WebView>> = RefCell::new(glib::WeakRef::new());
+}
+
 /// A chrome view (`ui` = tabbar, palette, keyhint, popup): transparent, own context,
 /// `nova.send(text)` → `on_message(text)`.
 pub fn chrome_view(ui: &str, on_message: impl Fn(&str) + 'static) -> WebView {
@@ -291,12 +296,16 @@ pub fn chrome_view(ui: &str, on_message: impl Fn(&str) + 'static) -> WebView {
     let s = Settings::new();
     s.set_enable_developer_extras(true);
     let (session, context) = ctx(|c| (c.chrome_session.clone(), c.chrome.clone()));
-    let view = WebView::builder()
-        .web_context(&context)
-        .network_session(&session)
-        .user_content_manager(&ucm)
-        .settings(&s)
-        .build();
+    // all chrome views share one web process (W14: 5 per window cost ~25-40 MB each)
+    let related = CHROME_PROC.with_borrow(|w| w.upgrade());
+    let b = WebView::builder().user_content_manager(&ucm).settings(&s);
+    let view = match &related {
+        Some(r) => b.related_view(r).build(),
+        None => b.web_context(&context).network_session(&session).build(),
+    };
+    if related.is_none() {
+        CHROME_PROC.with_borrow_mut(|w| w.set(Some(&view)));
+    }
     view.set_background_color(&gdk::RGBA::new(0.0, 0.0, 0.0, 0.0));
     // its web process died: load it again (it says `ready` and gets its state back)
     view.connect_web_process_terminated(|v, _| v.reload());
