@@ -17,7 +17,7 @@ Tests drive the browser over IPC: `--cmd`, `--query state`, `--key <keys>`.
 ## Now
 
 - **Phase:** 1–8 and 10 built and checked by S/F/P where IPC can reach; user's manual pass (`docs/manual-test.md`) next.
-- **Next action:** user runs `docs/manual-test.md`. Then, on the user's go: GitHub repo + tag, AUR publish (9.2), `webkitgtk-6.0-nova-bin`. C5 (aria2) and C6 done in the CEF repo (`main` 650078a, not pushed).
+- **Next action:** user runs `docs/manual-test.md`. Released 0.1.0 (9.2). D7 duty now live: rebuild `webkitgtk-6.0-nova-bin` within 3 days of each WebKitGTK release/advisory. C5 (aria2) and C6 done in the CEF repo (`main` 650078a, not pushed).
 - **Blockers:** none.
 
 ---
@@ -218,7 +218,7 @@ video fullscreen) is `[m]` in `docs/manual-test.md`.
 ## Phase 9 — Packaging and docs
 
 - [x] 9.1 Cargo workspace: app + `ext/` cdylib; `[profile.release]` thin LTO + strip; release build has no warnings; `Cargo.lock` matches the pinned nova-core git rev (`cargo metadata --locked` ok) (2026-10-29)
-- [~] 9.2 `packaging/PKGBUILD` (-git; `NOVA_SRC=file://$PWD/.. makepkg`), `packaging/aur/novabrowser-webkit` (tag tarball) + `-bin`, `packaging/release.sh`: depends `libwebkitgtk-6.0.so`, `gtk4`, `gst-plugins-good`, `curl`; optdepends `webkitgtk-6.0-nova`, `gst-libav`, `gst-plugins-bad`, `gst-plugin-va`, `aria2`, `rbw`, `pass`, `bitwarden-cli`; extension in `/usr/lib/novabrowser-webkit/`. Checked: -git makepkg builds + tests; packaged binary + extension pass `tests/smoke.sh` 3/3 runs; tag PKGBUILD builds from a `git archive` tarball. Not done: GitHub repo, tag, AUR push, `webkitgtk-6.0-nova-bin` (needs user go)
+- [x] 9.2 Released 0.1.0 (2026-10-29): GitHub `Novaturiente/novabrowser-webkit` (public, branch `master`), tag `v0.1.0` + release tarball, release `webkitgtk-6.0-nova-2.54.2-2` (WebKit build asset); AUR `novabrowser-webkit`, `novabrowser-webkit-bin`, `webkitgtk-6.0-nova-bin` pushed (`git ls-remote` + package pages 200); both -bin PKGBUILDs built from the uploaded assets. `packaging/PKGBUILD` (-git; `NOVA_SRC=file://$PWD/.. makepkg`), `packaging/aur/novabrowser-webkit` (tag tarball) + `-bin`, `packaging/release.sh`: depends `libwebkitgtk-6.0.so`, `gtk4`, `gst-plugins-good`, `curl`; optdepends `webkitgtk-6.0-nova`, `gst-libav`, `gst-plugins-bad`, `gst-plugin-va`, `aria2`, `rbw`, `pass`, `bitwarden-cli`; extension in `/usr/lib/novabrowser-webkit/`. Checked: -git makepkg builds + tests; packaged binary + extension pass `tests/smoke.sh` 3/3 runs; tag PKGBUILD builds from a `git archive` tarball. Not done: GitHub repo, tag, AUR push, `webkitgtk-6.0-nova-bin` (needs user go)
 - [x] 9.3 `packaging/novabrowser-webkit.desktop` (`desktop-file-validate` ok; no private-window action: no `--private` flag), icons copied from the CEF edition, `xdg-settings` line in README
 - [x] 9.4 `tests/smoke.sh` + `tests/features.sh` + `tests/passwords.sh` over IPC (shared `tests/lib.sh`) — 43 + 39 + 17 checks (start, tabs, hand-over, hints, find, prompts, crash, spawn/userscripts, sessions, marks, windows, downloads, toggles, adblock, quit, restore), all pass 2026-10-29
 - [x] 9.5 Docs ported to `docs/user/` (2026-10-29; facts checked against `src/`, unverified points listed in the session log) from `../novabrowser/novabrowser/docs/` (getting-started, keybindings, commands, configuration, settings, tabs-sessions-profiles, passwords, downloads, privacy, scripting, migrating, building, troubleshooting) with WebKit differences
