@@ -10,7 +10,7 @@ license=(GPL-3.0-or-later)
 # libwebkitgtk-6.0.so: Arch's webkitgtk-6.0 or our webkitgtk-6.0-nova (dark mode patch, PGO)
 depends=(libwebkitgtk-6.0.so gtk4 glib2 sqlite curl gst-plugins-base gst-plugins-good)
 makedepends=(git cargo)
-optdepends=('webkitgtk-6.0-nova: our WebKitGTK build (Chromium-like dark mode, PGO, AVX2 CPUs)'
+optdepends=('webkitgtk-6.0-nova-bin: our WebKitGTK build (Chromium-like dark mode, PGO, AVX2 CPUs)'
             'gst-libav: H.264/AAC and most web video'
             'gst-plugins-bad: more codecs (AV1, HLS)'
             'gst-plugin-va: hardware video decoding'

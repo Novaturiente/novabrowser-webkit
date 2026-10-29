@@ -1,26 +1,27 @@
 # novabrowser-webkit
 
-A WebKitGTK edition of [novabrowser](../novabrowser/novabrowser): the same keyboard-driven,
+A WebKitGTK edition of [novabrowser](https://github.com/Novaturiente/nova-browser): the same keyboard-driven,
 qutebrowser-style browser (modes, hints, palette, config.ts, password-manager
 integration, adblock, userscripts), on **WebKitGTK 6.0 + GTK 4** instead of
 CEF/Chromium.
 
 Status: **feature-complete against novabrowser 0.1.8, in manual testing**
-(`docs/manual-test.md`). Not released yet.
+(`docs/manual-test.md`). First release: 0.1.0.
 Speedometer 3.1 with our PGO WebKitGTK build (`webkitgtk-6.0-nova`): 27.25 vs
 26.3 for the CEF edition (2026-10-28). Full feature checklist: `PROGRESS.md`.
 
 ## Install
 
-Arch Linux, from this checkout (the AUR packages are not published yet):
+Arch Linux, from the AUR: `novabrowser-webkit` (builds from source) or
+`novabrowser-webkit-bin` (prebuilt). From this checkout:
 
 ```sh
 cd packaging && NOVA_SRC=file://$PWD/.. makepkg -si
 ```
 
-It runs on Arch's `webkitgtk-6.0`. Our own build, `webkitgtk-6.0-nova`
-(`spikes/wk-build/`), is faster (PGO) and has the dark-mode patch that keeps dark
-parts of light pages dark. That build needs an AVX2 (x86-64-v3) CPU.
+It runs on Arch's `webkitgtk-6.0`. Our own build, AUR `webkitgtk-6.0-nova-bin`
+(recipe in `spikes/wk-build/`), is faster (PGO) and has the dark-mode patch that
+keeps dark parts of light pages dark. That build needs an AVX2 (x86-64-v3) CPU.
 
 For most web video install `gst-libav` (H.264/AAC), and `gst-plugins-bad` for
 more codecs. Pages show a warning when media fails to decode.

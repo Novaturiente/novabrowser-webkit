@@ -8,7 +8,7 @@ arch=(x86_64)
 url="https://github.com/Novaturiente/novabrowser-webkit"
 license=(GPL-3.0-or-later)
 depends=(libwebkitgtk-6.0.so gtk4 glib2 sqlite curl gst-plugins-base gst-plugins-good)
-optdepends=('webkitgtk-6.0-nova: our WebKitGTK build (Chromium-like dark mode, PGO, AVX2 CPUs)'
+optdepends=('webkitgtk-6.0-nova-bin: our WebKitGTK build (Chromium-like dark mode, PGO, AVX2 CPUs)'
             'gst-libav: H.264/AAC and most web video'
             'gst-plugins-bad: more codecs (AV1, HLS)'
             'gst-plugin-va: hardware video decoding'
