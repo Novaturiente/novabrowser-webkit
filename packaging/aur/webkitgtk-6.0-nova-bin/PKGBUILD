@@ -1,7 +1,7 @@
 # Maintainer: Novaturiente
 # Prebuilt WebKitGTK 6.0 for novabrowser-webkit: PGO + x86-64-v3 + ThinLTO, no
 # introspection/docs, plus the colour-filter patch (dark mode keeps dark parts dark).
-# Build recipe and patch: https://github.com/Novaturiente/novabrowser-webkit/tree/main/spikes/wk-build
+# Build recipe and patch: https://github.com/Novaturiente/novabrowser-webkit/tree/master/spikes/wk-build
 # Upstream source: https://webkitgtk.org/releases/webkitgtk-$pkgver.tar.xz
 pkgname=webkitgtk-6.0-nova-bin
 pkgver=2.54.2
@@ -25,7 +25,7 @@ conflicts=(webkitgtk-6.0 webkitgtk-6.0-nova)
 options=(!strip !debug)
 _tag=webkitgtk-6.0-nova-$pkgver-$pkgrel
 source=("$_tag-x86_64.tar.zst::$url/releases/download/$_tag/$_tag-x86_64.tar.zst")
-sha256sums=('SKIP')
+sha256sums=('8997e67b48d294ba6b161a91e3f1be7a1d94dca4a40f2fbbc4843c075d534aa0')
 
 prepare() {
   /lib/ld-linux-x86-64.so.2 --help 2>/dev/null | grep -q 'x86-64-v3 (supported' || {
