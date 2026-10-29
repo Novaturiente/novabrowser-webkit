@@ -287,6 +287,15 @@ pub fn page_message(view: &WebView, text: &str) {
             "focus" if active => modes::on_focus(arg == "1"),
             "pw" => crate::passwords::on_message(view, arg),
             "adblock" => crate::adblock::on_message(view, arg),
+            "media" => {
+                let (code, src) = arg.split_once(' ').unwrap_or((arg, ""));
+                let what = if code == "3" { "can't decode" } else { "can't play (format not supported or not found)" };
+                let name = src.rsplit('/').next().filter(|s| !s.is_empty()).unwrap_or("media");
+                window::message(
+                    "warning",
+                    &format!("{what}: {name}. Missing codec? Install gst-libav and gst-plugins-bad."),
+                );
+            }
             _ => {}
         }
     });

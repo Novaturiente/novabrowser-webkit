@@ -28,6 +28,8 @@ n=$(ntabs); [ "$n" = 2 ] && ok "tab-close ($n tabs left)" || fail "tab-close: $(
 grep -q '"theme": *"light"' "$XDG_CONFIG_HOME/$app/autoconfig.json" 2>/dev/null \
     && ok ":set persists to autoconfig.json" || fail ":set persistence"
 "$bin" --cmd "set auto_save.session true" >/dev/null
+"$bin" --cmd "set chromium.args '[]'" >/dev/null
+wait_for 'chromium.args only applies to the CEF edition' 5 && ok ":set refuses CEF-only settings" || fail "chromium.*: $(q)"
 
 "$bin" --cmd "history" >/dev/null
 wait_for '"url":"nova://page/' 5 && ok "internal page (:history) opens" || fail "history page: $(q)"
@@ -126,6 +128,13 @@ for _ in $(seq 50); do [ -s $tmp/dl/file.bin ] && break; sleep 0.2; done
 "$bin" --cmd "download http://127.0.0.1:$port/dl/file.bin" >/dev/null
 for _ in $(seq 50); do [ -s "$tmp/dl/file (1).bin" ] || [ -s "$tmp/dl/file.1.bin" ] && break; sleep 0.2; done
 [ -s "$tmp/dl/file (1).bin" ] || [ -s "$tmp/dl/file.1.bin" ]; [ $? = 0 ] && ok "second download gets a (1) name" || fail "unique name: $(ls $tmp/dl)"
+
+# media that can't play: a warning naming the GStreamer packages
+head -c 4096 /dev/urandom > $srv/broken.mp4
+echo '<title>media</title><video src="broken.mp4" autoplay muted></video>' > $srv/media.html
+"$bin" --cmd "open -t http://127.0.0.1:$port/media.html" >/dev/null
+wait_for 'broken.mp4. Missing codec' 10 && ok "unplayable media: missing-codec warning" || fail "media: $(q)"
+"$bin" --cmd "tab-close" >/dev/null
 
 # a permission request set to ask lands in the prompt; tab close answers no
 "$bin" --cmd "open -t http://127.0.0.1:$port/notify.html" >/dev/null

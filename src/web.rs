@@ -25,6 +25,20 @@ pub const SAFARI_UA: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) App
 /// navigator.platform must match a Mac UA, else scripts see Linux behind it.
 const SAFARI_JS: &str = "if (/Macintosh/.test(navigator.userAgent)) Object.defineProperty(Navigator.prototype, 'platform', {get: () => 'MacIntel', configurable: true});";
 
+/// Media that can't play (format unsupported / not decodable): one report per document.
+/// WebKitGTK 6 has no missing-plugin signal, so the page's media `error` events stand in.
+const MEDIA_JS: &str = r#"(() => {
+  let sent = false;
+  addEventListener('error', (e) => {
+    const m = e.target instanceof HTMLSourceElement ? e.target.parentElement : e.target;
+    if (sent || !(m instanceof HTMLMediaElement)) return;
+    const code = m.error ? m.error.code : (m.networkState === 3 ? 4 : 0);
+    if (code !== 3 && code !== 4) return; // 3 decode, 4 format/source not supported
+    sent = true;
+    try { webkit.messageHandlers.nova.postMessage('media ' + code + ' ' + (m.currentSrc || m.src || '').slice(0, 300)); } catch (_) {}
+  }, true);
+})()"#;
+
 /// Focus reports for auto insert mode, all frames, in our world.
 const FOCUS_JS: &str = r#"(() => {
   const ed = (e) => !!e && (e.isContentEditable || (e.tagName === 'INPUT' && !/^(button|checkbox|color|file|hidden|image|radio|range|reset|submit)$/i.test(e.type)) || e.tagName === 'TEXTAREA' || e.tagName === 'SELECT');
@@ -221,6 +235,14 @@ pub fn page_view(related: Option<&WebView>, private: bool) -> WebView {
         FOCUS_JS,
         UserContentInjectedFrames::AllFrames,
         UserScriptInjectionTime::End,
+        WORLD,
+        &[],
+        &[],
+    ));
+    ucm.add_script(&UserScript::for_world(
+        MEDIA_JS,
+        UserContentInjectedFrames::AllFrames,
+        UserScriptInjectionTime::Start,
         WORLD,
         &[],
         &[],
