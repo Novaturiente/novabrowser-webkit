@@ -50,6 +50,8 @@ pub struct State {
     keyhint: Option<WebView>,
     tip: Option<WebView>,
     menu: Option<WebView>,
+    /// the open question (permissions.rs queue), spotlight-style under the tab bar
+    ask: Option<WebView>,
     keyhint_gen: u64,
     compact: bool,
     pub tabs: Vec<Tab>,
@@ -112,7 +114,7 @@ fn owner(id: usize) -> Option<usize> {
     WINS.with_borrow(|w| {
         w.iter().position(|s| {
             s.tabs.iter().any(|t| vid(&t.view) == Some(id))
-                || [&s.tabbar, &s.palette, &s.keyhint, &s.tip, &s.menu]
+                || [&s.tabbar, &s.palette, &s.keyhint, &s.tip, &s.menu, &s.ask]
                     .iter()
                     .any(|v| vid(v) == Some(id))
         })
@@ -207,7 +209,8 @@ fn build_window(slot: usize) {
     let keyhint = ui("keyhint");
     let tip = ui("popup");
     let menu = ui("popup");
-    for (v, parent) in [(&palette, &content), (&keyhint, &content), (&tip, &root), (&menu, &root)] {
+    let ask = ui("prompt");
+    for (v, parent) in [(&palette, &content), (&keyhint, &content), (&ask, &content), (&tip, &root), (&menu, &root)] {
         v.set_visible(false);
         parent.add_overlay(v);
     }
@@ -220,6 +223,12 @@ fn build_window(slot: usize) {
     keyhint.set_valign(gtk::Align::End);
     keyhint.set_margin_end(12);
     keyhint.set_margin_bottom(12);
+    // keys answer through prompt mode, so the page keeps focus; clicks still reach the buttons
+    ask.set_can_focus(false);
+    ask.set_halign(gtk::Align::Center);
+    ask.set_valign(gtk::Align::Start);
+    ask.set_margin_top(12);
+    ask.set_background_color(&gtk::gdk::RGBA::new(0.0, 0.0, 0.0, 0.0));
     palette.set_halign(gtk::Align::Fill);
     for v in [&tip, &menu] {
         v.set_halign(gtk::Align::Start);
@@ -249,6 +258,7 @@ fn build_window(slot: usize) {
         s.keyhint = Some(keyhint);
         s.tip = Some(tip);
         s.menu = Some(menu);
+        s.ask = Some(ask);
         (s.start_url.clone(), s.startup.take(), s.private)
     });
     apply_layout();
@@ -776,10 +786,8 @@ pub fn refresh() {
             })
             .collect();
         let t = s.tabs.get(s.active)?;
-        let (level, msg) = match &s.prompt {
-            Some(p) => ("prompt".to_string(), p.clone()),
-            None => s.message.clone().unwrap_or_default(),
-        };
+        // the open question has its own popup (set_prompt), not the tab bar
+        let (level, msg) = s.message.clone().unwrap_or_default();
         let profile = if s.private {
             "private".to_string()
         } else {
@@ -1118,9 +1126,24 @@ pub fn undo_close() {
     }
 }
 
-pub fn set_prompt(text: Option<String>) {
-    S.with_borrow_mut(|s| s.prompt = text);
+/// Show (or hide, with None) the open question and its [key, label] answers.
+pub fn set_prompt(p: Option<(String, Vec<[&'static str; 2]>)>) {
+    let Some((view, content)) = S.with_borrow_mut(|s| {
+        s.prompt = p.as_ref().map(|p| p.0.clone());
+        Some((s.ask.clone()?, s.content.clone()?))
+    }) else {
+        return;
+    };
     refresh();
+    let Some((q, opts)) = p else {
+        return view.set_visible(false);
+    };
+    let w = (content.width() - 24).clamp(200, 560);
+    // shortcut: line count guessed at ~8 px per character; prompt.html clamps to 4 lines
+    let lines = (q.chars().count() as i32 * 8 / (w - 32) + 1).min(4);
+    view.set_size_request(w, 28 + 20 * lines + 12 + 32);
+    view.set_visible(true);
+    web::eval_page(&view, &format!("nova.ask({})", json!({"q": q, "opts": opts})));
 }
 
 /// Show a status bar message for `messages.timeout` ms (`info`, `warning`, `error`).
@@ -1639,7 +1662,7 @@ fn push_theme() {
     })
     .to_string();
     let views = S.with_borrow(|s| {
-        [&s.tabbar, &s.palette, &s.keyhint, &s.tip, &s.menu]
+        [&s.tabbar, &s.palette, &s.keyhint, &s.tip, &s.menu, &s.ask]
             .into_iter()
             .flatten()
             .cloned()
@@ -1699,6 +1722,7 @@ fn ui_message(text: &str) {
         ("menuact", _) => tab_menu_action(arg),
         ("menuclose", _) => close_popup(),
         ("pwpick", Ok(i)) if i >= 0 => crate::passwords::on_click(i as usize),
+        ("answer", _) => crate::permissions::on_key(arg),
         _ => eprintln!("novabrowser-webkit: unknown UI message {text:?}"),
     }
 }

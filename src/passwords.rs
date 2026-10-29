@@ -440,9 +440,9 @@ fn ask(view: &WebView, b: Backend, url: &str, user: String, pass: String, existi
     let h = pw::host(url);
     let who = if user.is_empty() { String::new() } else { format!(" for {user}") };
     let text = match (&existing, locked) {
-        (_, true) => format!("Save this login{who} on {h} to {}? (unlocks the vault) [y]es [n]o", pw::label(b)),
-        (Some(_), _) => format!("Update the {} password{who} on {h}? [y]es [n]o", pw::label(b)),
-        (None, _) => format!("Save this login{who} on {h} to {}? [y]es [n]o", pw::label(b)),
+        (_, true) => format!("Save this login{who} on {h} to {}? (unlocks the vault)", pw::label(b)),
+        (Some(_), _) => format!("Update the {} password{who} on {h}?", pw::label(b)),
+        (None, _) => format!("Save this login{who} on {h} to {}?", pw::label(b)),
     };
     let url = url.to_string();
     crate::permissions::ask(view, text, move |yes| {

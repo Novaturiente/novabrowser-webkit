@@ -1,5 +1,5 @@
 //! Site permissions: qutebrowser's `content.*` true/false/ask settings, a y/n/A/N prompt
-//! in the tab bar for "ask", and A/N answers saved per origin in <data>/permissions.json
+//! (a popup under the tab bar, ui/prompt.html) for "ask", and A/N answers saved per origin in <data>/permissions.json
 //! (they win over config.ts). JS dialogs, TLS errors and hung pages share the queue.
 use crate::{config, modes, web, window};
 use gtk::{gio, glib};
@@ -213,7 +213,7 @@ pub fn request(view: &WebView, req: &PermissionRequest) -> bool {
         Decision::Ask => {
             let what: Vec<_> = wanted.iter().map(|w| w.1).collect();
             let text = format!(
-                "Allow {origin} to {}? [y]es [n]o [A]lways [N]ever",
+                "Allow {origin} to {}?",
                 what.join(" and ")
             );
             let mut settings: Vec<&'static str> = wanted.iter().map(|w| w.0).collect();
@@ -230,16 +230,16 @@ pub fn dialog(view: &WebView, d: &ScriptDialog) -> bool {
     let host = crate::commands::host(&view.uri().unwrap_or_default()).to_string();
     let msg = d.message().map(|m| m.to_string()).unwrap_or_default();
     let (text, input) = match d.dialog_type() {
-        ScriptDialogType::Alert => (format!("{host} says: {msg} [y]/[n] to close"), String::new()),
+        ScriptDialogType::Alert => (format!("{host} says: {msg}"), String::new()),
         ScriptDialogType::Prompt => {
             let def = d.prompt_get_default_text().map(|t| t.to_string()).unwrap_or_default();
-            (format!("{host} says: {msg} [y]es (answer \"{def}\") [n]o"), def)
+            (format!("{host} says: {msg} (yes answers \"{def}\")"), def)
         }
         ScriptDialogType::BeforeUnloadConfirm => (
-            "Leave this page? Changes you made may not be saved. [y]es [n]o".to_string(),
+            "Leave this page? Changes you made may not be saved.".to_string(),
             String::new(),
         ),
-        _ => (format!("{host} says: {msg} [y]es [n]o"), String::new()),
+        _ => (format!("{host} says: {msg}"), String::new()),
     };
     push(view, String::new(), Vec::new(), text, Callback::Dialog(d.clone(), input));
     true
@@ -263,7 +263,7 @@ pub fn ask(view: &WebView, text: String, f: impl Fn(bool) + 'static) {
 pub fn tls_error(view: &WebView, uri: &str, cert: &gio::TlsCertificate, errors: gio::TlsCertificateFlags) {
     let host = crate::commands::host(uri).to_string();
     let text = format!(
-        "{host}: certificate not trusted ({}). Load it anyway this run? [y]es [n]o",
+        "{host}: certificate not trusted ({}). Load it anyway this run?",
         tls_words(errors)
     );
     let (w, cert, uri) = (view.downgrade(), cert.clone(), uri.to_string());
@@ -302,7 +302,7 @@ pub fn hung(view: &WebView) {
         view,
         String::new(),
         Vec::new(),
-        "This page isn't responding. Kill it? [y]es [n]o, keep waiting".into(),
+        "This page isn't responding. Kill it?".into(),
         Callback::Hang,
     );
 }
@@ -319,16 +319,27 @@ fn show_later() {
     glib::idle_add_local_once(show);
 }
 
+/// The answer buttons for a prompt: [key, label]; keys are what `on_key` takes.
+fn choices(cb: &Callback) -> Vec<[&'static str; 2]> {
+    match cb {
+        Callback::Request(_) => vec![["y", "Yes"], ["n", "No"], ["A", "Always"], ["N", "Never"]],
+        Callback::Dialog(d, _) if d.dialog_type() == ScriptDialogType::Alert => vec![["y", "OK"]],
+        Callback::Hang => vec![["y", "Kill page"], ["n", "Keep waiting"]],
+        _ => vec![["y", "Yes"], ["n", "No"]],
+    }
+}
+
 /// Show the oldest open prompt, or leave prompt mode when there is none.
 fn show() {
-    let text = QUEUE.with_borrow(|q| q.front().map(|p| p.text.clone()));
+    let front = QUEUE.with_borrow(|q| q.front().map(|p| (p.text.clone(), choices(&p.cb))));
+    let text = front.as_ref().map(|f| f.0.clone());
     SHOWN.with_borrow_mut(|s| {
         if s.0 != text {
             *s = (text.clone(), Some(std::time::Instant::now()));
         }
     });
     let on = text.is_some();
-    window::set_prompt(text);
+    window::set_prompt(front);
     match (on, modes::mode() == modes::Mode::Prompt) {
         (true, false) => {
             if modes::mode() == modes::Mode::Command {

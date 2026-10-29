@@ -1,0 +1,42 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>prompt</title>
+<style>
+  /* Spotlight-style question under the tab bar: the question, then one button per answer.
+     Never focused: keys reach it through prompt mode (y/n/A/N, Escape = no); clicks send
+     "answer <key>". Theme vars from nova.theme. */
+  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
+  #box { box-sizing: border-box; height: 100%; padding: 14px 16px; border-radius: 14px;
+         display: flex; flex-direction: column; gap: 12px;
+         font: var(--fonts-prompts, var(--fonts-statusbar, 10pt sans-serif));
+         background: var(--colors-prompts-bg, #222); color: var(--colors-prompts-fg, #eee);
+         border: 1px solid var(--colors-completion-category-border-top, #444); }
+  #q { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4;
+       overflow-wrap: anywhere; line-height: 1.4; }
+  #opts { display: flex; gap: 8px; margin-top: auto; }
+  button { flex: 1 1 0; font: inherit; padding: 6px 12px; border-radius: 999px; cursor: pointer;
+           border: 1px solid var(--colors-completion-category-border-top, #444);
+           background: var(--colors-completion-even-bg, #333); color: inherit; }
+  button:first-child { background: var(--colors-tabs-indicator-start, #48f); color: var(--colors-tabs-bar-bg, #000);
+                       border-color: transparent; font-weight: bold; }
+  button.minor { flex: 0 0 auto; opacity: .75; }
+  button:hover { filter: brightness(1.15); }
+  kbd { font: inherit; opacity: .6; margin-left: .5em; }
+</style>
+<body><div id="box"><div id="q"></div><div id="opts"></div></div>
+<script>
+  nova.theme = (t) => { for (const [k, v] of Object.entries(t.vars)) document.documentElement.style.setProperty(k, v); };
+  // nova.ask({q, opts: [[key, label], ...]}); the first two are the main answers, the rest minor
+  nova.ask = (p) => {
+    document.getElementById("q").textContent = p.q;
+    document.getElementById("opts").replaceChildren(...p.opts.map(([key, label], i) => {
+      const b = document.createElement("button");
+      if (i > 1) b.className = "minor";
+      b.append(label, Object.assign(document.createElement("kbd"), { textContent: key }));
+      b.onmousedown = (e) => { e.preventDefault(); nova.send("answer " + key); };
+      return b;
+    }));
+  };
+  nova.send("ready");
+</script>
+</body>
