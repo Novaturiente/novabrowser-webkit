@@ -4,16 +4,26 @@
 <style>
   /* Tab tooltip (title + URL) and the tab right-click menu. Theme vars from nova.theme. */
   html, body { margin: 0; height: 100%; overflow: hidden; }
+  /* rounded card: the view itself is transparent (web.rs chrome_view) */
   body { box-sizing: border-box; padding: 6px; font: var(--fonts-tooltip, var(--fonts-statusbar, 10pt sans-serif));
          background: var(--colors-tooltip-bg, #222); color: var(--colors-tooltip-fg, #eee);
-         border: 1px solid var(--colors-completion-category-border-top, #444); }
+         border: 1px solid var(--colors-completion-category-border-top, #444); border-radius: 14px; }
   body.menu { background: var(--colors-contextmenu-menu-bg, #222); color: var(--colors-contextmenu-menu-fg, #eee);
               font: var(--fonts-contextmenu, var(--fonts-statusbar, 10pt sans-serif)); }
-  .t { font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 2px 4px; }
-  .u { opacity: .7; word-break: break-all; padding: 2px 4px; }
-  .i { padding: 0 10px; height: 28px; line-height: 28px; border-radius: 6px; cursor: default; display: flex; }
-  .i span { flex: 1; } .i kbd { opacity: .5; font: inherit; }
-  .i.sel { background: var(--colors-contextmenu-selected-bg, #444); color: var(--colors-contextmenu-selected-fg, #fff); }
+  .t { font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 3px 6px; }
+  .u { opacity: .65; word-break: break-all; padding: 2px 6px; }
+  .i { padding: 0 10px; height: 28px; line-height: 28px; border-radius: 9px; cursor: default; display: flex; gap: 10px;
+       white-space: nowrap; }
+  .i span { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+  .i kbd { opacity: .5; font: inherit; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
+  .i:hover:not(.sel) { background: color-mix(in srgb, var(--colors-contextmenu-selected-bg, #444) 50%, transparent); }
+  .i.sel { background: color-mix(in srgb, var(--colors-tabs-indicator-start, #48f) 22%, var(--colors-contextmenu-selected-bg, #444));
+           color: var(--colors-contextmenu-selected-fg, #fff); }
+  /* password list: a key badge before the site line */
+  .h { display: flex; align-items: center; gap: 8px; padding: 2px 6px 6px; font-size: .9em; opacity: .7; }
+  .h::before { content: "🔑"; font-size: .75em; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%;
+               color: var(--colors-tabs-indicator-start, #48f);
+               background: color-mix(in srgb, var(--colors-tabs-indicator-start, #48f) 20%, transparent); }
 </style>
 <body><div id="c"></div>
 <script>
@@ -39,7 +49,7 @@
   nova.suggest = (d) => {
     items = []; document.body.className = "menu";
     if (!d) return c.replaceChildren();
-    c.replaceChildren(el("u", d.title), ...d.rows.map((r, i) => {
+    c.replaceChildren(el("h", d.title), ...d.rows.map((r, i) => {
       const x = el("i" + (r.sel ? " sel" : ""), "");
       x.append(Object.assign(document.createElement("span"), { textContent: r.a }), Object.assign(document.createElement("kbd"), { textContent: r.b }));
       x.onmousedown = (e) => { e.preventDefault(); nova.send("pwpick " + i); };

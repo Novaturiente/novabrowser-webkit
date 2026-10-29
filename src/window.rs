@@ -728,14 +728,17 @@ pub fn crashed(view: &WebView, why: &str) {
         t.crashed = Some(t.url.clone());
         t.loading = false;
     });
-    let html = format!(
+    let html = theme::themed_page(format!(
         "<!doctype html><meta charset=utf-8><title>crashed</title>\
-         <body style='font:16px sans-serif;background:#222;color:#ddd;padding:2em'>\
-         <h2>This tab crashed ({why})</h2><p id=u style='font-family:monospace'></p>\
-         <p>Press <b>r</b> to reload.</p>\
+         <style>.c{{max-width:34em;margin:18vh auto 0;text-align:center}}\
+         .i{{width:3.2em;height:3.2em;margin:0 auto 1em;border-radius:50%;display:grid;place-items:center;\
+         font-size:1.6em;font-weight:700;color:var(--red);background:color-mix(in srgb,var(--red) 18%,transparent)}}\
+         #u{{font:.9em ui-monospace,monospace;color:var(--muted);word-break:break-all}}</style>\
+         <div class=c><div class=i>!</div><h2 style='text-transform:none;letter-spacing:0;font-size:1.3em;color:var(--fg)'>\
+         This tab crashed ({why})</h2><p id=u></p><p>Press <kbd>r</kbd> to reload.</p></div>\
          <script>document.getElementById('u').textContent = {};</script>",
         js_str(&url)
-    );
+    ));
     view.load_alternate_html(&html, &url, None);
 }
 
@@ -1372,7 +1375,8 @@ pub fn suggest(field: (i32, i32, i32, i32), data: &Value) {
         cx + field.0,
         cy + field.1 + field.3 + 4,
         360,
-        34 + n.min(8) * 28,
+        // header row with the key badge (popup.html .h) + padding + rows
+        44 + n.min(8) * 28,
         &format!("nova.suggest({data})"),
     );
 }

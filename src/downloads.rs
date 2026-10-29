@@ -530,6 +530,14 @@ h1{font-size:1.3em;font-weight:600}.hint{opacity:.6;font-size:.85em}
 .st{font-size:.85em;padding:0 .6em;border-radius:999px;align-self:start}
 .done{background:#2a7a3a33}.failed,.deleted{background:#a0303033}.running{background:#3060a033}
 .meta,.src{grid-column:2/4;font-size:.85em;opacity:.7;word-break:break-all}
+.n{display:grid;place-items:center;width:2.2em;height:2.2em;border-radius:50%;background:var(--surface2,transparent);opacity:1;color:var(--muted,inherit)}
+.st{padding:.15em .8em;font-weight:600}
+.done{color:var(--green);background:color-mix(in srgb,var(--green) 15%,transparent)}
+.failed,.deleted{color:var(--red);background:color-mix(in srgb,var(--red) 15%,transparent)}
+.running{color:var(--accent);background:color-mix(in srgb,var(--accent) 15%,transparent)}
+.bar{grid-column:2/4;height:6px;border-radius:999px;background:var(--surface2);overflow:hidden;margin:.3em 0}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:999px}
+.meta,.src{color:var(--muted);opacity:1}
 </style>
 <h1>Downloads</h1>
 <p class=hint><code>:download-open N</code> opens entry N · <code>:download-cancel N</code> · <code>:download-clear</code> forgets finished entries · reopen <code>:downloads</code> to refresh</p>
@@ -539,12 +547,13 @@ const rows=/*DATA*/[];
 const size=b=>b<1024?b+" B":b<1048576?(b/1024).toFixed(1)+" KB":b<1073741824?(b/1048576).toFixed(1)+" MB":(b/1073741824).toFixed(2)+" GB";
 const time=s=>s?new Date(s*1000).toLocaleString():"";
 const list=document.getElementById("list");
-if(!rows.length)list.textContent="No downloads yet.";
+if(!rows.length)list.innerHTML="<p class=empty>No downloads yet.</p>";
 rows.forEach((r,i)=>{
   const d=document.createElement("div");d.className="d";
   const add=(cls,text)=>{const e=document.createElement("div");e.className=cls;e.textContent=text;d.append(e);};
   add("n",i+1);add("name",r.name);
   add("st "+r.st,r.st==="running"&&r.total>0?Math.floor(r.got*100/r.total)+"%":r.st);
+  if(r.st==="running"&&r.total>0){const b=document.createElement("div");b.className="bar";const f=document.createElement("i");f.style.width=Math.floor(r.got*100/r.total)+"%";b.append(f);d.append(b);}
   add("meta",[r.st==="running"?size(r.got)+(r.total>0?" of "+size(r.total):""):size(r.got),"in "+r.dir,r.end?"finished "+time(r.end):"started "+time(r.start)].join(" · "));
   add("src",r.url);
   list.append(d);
