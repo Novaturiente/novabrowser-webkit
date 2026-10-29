@@ -111,11 +111,11 @@ Write down anything that fails as: item number, what you did, what happened.
 - 8.9 Hover a tab: tooltip after a moment. Right-click a tab: menu; try each entry; j/k/Enter/Esc.
 - 8.10 Drag a tab; drag a pinned tab: it stays in the pinned group.
 - 8.11 Play audio in a background tab: indicator; `Alt-m` mutes.
-- 8.13 `Sb` / `Sq`: edit a name, delete an entry, a bad URL is refused.
+- 8.13 `Sb` (quickmarks and bookmarks page): edit a name, delete an entry, a bad URL is refused.
 - 8.14 / 8.15 Download a big file: pill `↓ 1 · P%`, finished message; `:download-open 1`; `:download-cancel` on a running one.
 - 8.16 With `downloads.backend aria2`: a magnet link, quit mid-download and restart (it resumes), cancel (partial file removed).
 - 8.17 Right-click a link, an image, a video, selected text: each menu entry.
-- 8.18 `<Space>i` (devtools): Web Inspector in its own window.
+- 8.18 `<F12>` (devtools): Web Inspector in its own window.
 - 8.19 Fullscreen a YouTube video: it fills the window, not the screen.
 - 8.20 `:profile-new work`: new window with a `[work]` pill; logins there are separate.
 - 8.21 `:open -p`: window marked private; after closing it, nothing in history.
