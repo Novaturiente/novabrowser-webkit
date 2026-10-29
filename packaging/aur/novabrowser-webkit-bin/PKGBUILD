@@ -22,7 +22,7 @@ conflicts=(novabrowser-webkit novabrowser-webkit-git)
 options=(!strip !debug)
 # The /usr tree of the `novabrowser-webkit` package, built by packaging/release.sh
 source=("novabrowser-webkit-$pkgver-x86_64.tar.zst::$url/releases/download/v$pkgver/novabrowser-webkit-$pkgver-x86_64.tar.zst")
-sha256sums=('SKIP')
+sha256sums=('92d0ffc738c612a5c87109c3c7559ea9967f508503c2421f8e15d595b3817821')
 
 package() {
   cp -a "$srcdir/usr" "$pkgdir/"
