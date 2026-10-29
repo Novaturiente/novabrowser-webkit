@@ -5,8 +5,8 @@
   /* Messages (info / warning / error / find) as a floating pill at the bottom centre.
      Never focused or clicked; window.rs sizes and fades it (anim.rs). */
   html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
-  body { box-sizing: border-box; padding: 6px; display: flex; }
-  #t { flex: 1; display: flex; align-items: center; gap: 10px; padding: 0 18px 0 8px; border-radius: 999px;
+  body { box-sizing: border-box; padding: 6px; display: flex; justify-content: center; }
+  #t { flex: 0 1 auto; max-width: 100%; box-sizing: border-box; display: flex; align-items: center; gap: 10px; padding: 0 18px 0 8px; border-radius: 999px;
        white-space: nowrap; overflow: hidden; font: var(--fonts-messages-info, var(--fonts-statusbar, 10pt sans-serif));
        background: var(--colors-messages-info-bg, #333); color: var(--colors-messages-info-fg, #eee);
        border: 1px solid var(--colors-completion-category-border-top, #444); box-shadow: 0 2px 5px rgba(0, 0, 0, .35); }

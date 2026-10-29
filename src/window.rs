@@ -1227,6 +1227,17 @@ pub fn message(level: &str, text: &str) {
         s.message_id
     });
     refresh();
+    // typing a search: the count goes in the search pill, which sits where the toast would
+    if modes::mode() == Mode::Command && S.with_borrow(|s| s.compact) {
+        let count = match level {
+            "find" => text.split('\t').nth(1),
+            "warning" if text.ends_with("not found on page!") => Some("no match"),
+            _ => None,
+        };
+        if let Some(c) = count {
+            return palette_js(&format!("nova.count({})", js_str(c)));
+        }
+    }
     show_toast(level, text);
     let ms = config::get().int("messages.timeout");
     if ms > 0 {
@@ -1246,14 +1257,13 @@ pub fn message(level: &str, text: &str) {
     }
 }
 
-/// The message as a pill at the bottom centre, sized to its text (~8 px a character).
+/// The message as a pill at the bottom centre. The view spans the content width (it is
+/// transparent and takes no clicks); the pill sizes itself to the text (toast.html).
 fn show_toast(level: &str, text: &str) {
     let Some((t, content)) = S.with_borrow(|s| Some((s.toast.clone()?, s.content.clone()?))) else {
         return;
     };
-    let max = (content.width() - 40).max(160);
-    let w = (text.chars().count() as i32 * 8 + 70).clamp(140, max.min(720));
-    t.set_size_request(w, 46);
+    t.set_size_request((content.width() - 40).max(160), 46);
     crate::anim::reveal(&t, &format!("nova.toast({}, {})", js_str(level), js_str(text)), &[]);
 }
 
@@ -1394,12 +1404,16 @@ fn place_palette() {
         return;
     };
     if compact {
-        let cfg = config::get();
-        let h = theme::bar_height(&cfg, "fonts.statusbar", "statusbar.padding") + 16;
-        p.set_valign(gtk::Align::Start);
-        p.set_size_request(-1, h);
+        // search: a pill at the bottom centre, where its find toast shows after Enter
+        let w = S.with_borrow(|s| s.content.as_ref().map_or(600, |c| c.width()));
+        p.set_halign(gtk::Align::Center);
+        p.set_valign(gtk::Align::End);
+        p.set_margin_bottom(12);
+        p.set_size_request((w - 40).clamp(240, 560), 64);
     } else {
+        p.set_halign(gtk::Align::Fill);
         p.set_valign(gtk::Align::Fill);
+        p.set_margin_bottom(0);
         p.set_size_request(-1, -1);
     }
 }
