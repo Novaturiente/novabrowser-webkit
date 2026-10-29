@@ -2,11 +2,15 @@
 # Records the browser window while overlays open and close, then prints the mean
 # brightness (luma 0-255) of every frame. A flash shows as a dip or spike that a
 # plain fade would not make. Throwaway profile; data: pages only.
-# Needs Hyprland (window geometry), wf-recorder and ffmpeg.
-# The recording is a screen region: it is deleted after the analysis (KEEP=1 keeps it).
-# Usage: spikes/w15-ui-smooth/flash.sh [binary] [out-dir]
+# Runs inside a nested niri (spikes/w15-ui-smooth/niri.kdl) so the recording sees only
+# the browser: on the live desktop other windows and workspace switches got recorded.
+# Start it first: `niri -c spikes/w15-ui-smooth/niri.kdl`, then NESTED=wayland-2 (its socket).
+# Needs wf-recorder and ffmpeg. The recording is deleted after the analysis (KEEP=1 keeps it).
+# Usage: NESTED=wayland-2 spikes/w15-ui-smooth/flash.sh [binary] [out-dir]
 set -u
 cd "$(dirname "$0")/../.."
+export WAYLAND_DISPLAY=${NESTED:?start the nested niri and set NESTED to its socket}
+unset DISPLAY
 . tests/lib.sh
 out=${2:-spikes/w15-ui-smooth/results/$(date +%H%M%S)}
 mkdir -p "$out"
@@ -15,15 +19,8 @@ dark="data:text/html,<title>dark</title><body style='background:%23123;margin:0'
 
 start "$white"
 wait_for '"title":"white"' 30 || { fail "start"; finish; }
-sleep 1.5
-hyprctl dispatch focuswindow "pid:$pid" >/dev/null
-sleep 0.5
-geo=$(hyprctl clients -j | python3 -c "
-import json, sys
-c = [c for c in json.load(sys.stdin) if c['pid'] == $pid][0]
-(x, y), (w, h) = c['at'], c['size']
-print(f'{x},{y} {w}x{h}')")
-wf-recorder -y -g "$geo" -r 60 -c libx264 -p crf=12 -f "$out/rec.mp4" >"$out/rec.log" 2>&1 &
+sleep 2.5
+wf-recorder -y -r 60 -c libx264 -p crf=12 -f "$out/rec.mp4" >"$out/rec.log" 2>&1 &
 rec=$!
 t0=$(date +%s.%N)
 sleep 1.5

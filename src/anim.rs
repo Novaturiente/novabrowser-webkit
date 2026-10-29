@@ -10,8 +10,8 @@ use std::time::Duration;
 use webkit6::prelude::*;
 use webkit6::WebView;
 
-const IN_MS: f64 = 140.0;
-const OUT_MS: f64 = 90.0;
+const IN_MS: f64 = 200.0;
+const OUT_MS: f64 = 140.0;
 
 thread_local! {
     /// Running fade per widget: its tick callback and target opacity.
@@ -36,7 +36,8 @@ fn fading_out(w: &gtk::Widget) -> bool {
     FADES.with_borrow(|f| f.get(&key(w)).is_some_and(|x| x.1 == 0.0))
 }
 
-/// Animate `w`'s opacity to `to` (ease-out), then run `done`. Replaces a running fade.
+/// Animate `w`'s opacity to `to` (ease-in-out: an ease-out dimmed a white page by half
+/// in two frames, which reads as a flash), then run `done`. Replaces a running fade.
 fn fade(w: &gtk::Widget, to: f64, ms: f64, done: impl Fn(&gtk::Widget) + 'static) {
     cancel(w);
     let from = w.opacity();
@@ -50,7 +51,7 @@ fn fade(w: &gtk::Widget, to: f64, ms: f64, done: impl Fn(&gtk::Widget) + 'static
         let t0 = start.get().unwrap_or(now);
         start.set(Some(t0));
         let t = ((now - t0) as f64 / 1000.0 / ms).min(1.0);
-        w.set_opacity(from + (to - from) * (1.0 - (1.0 - t).powi(3)));
+        w.set_opacity(from + (to - from) * (1.0 - (t * std::f64::consts::PI).cos()) / 2.0);
         if t < 1.0 {
             return ControlFlow::Continue;
         }
@@ -93,6 +94,24 @@ pub fn reveal(view: &WebView, js: &str, also: &[gtk::Widget]) {
     view.call_async_javascript_function(&body, None, None, None, None::<&gio::Cancellable>, move |_| s());
     // never left invisible when the page doesn't paint (busy or restarting web process)
     glib::timeout_add_local_once(Duration::from_millis(250), move || start());
+}
+
+/// Draw `ws` once, almost transparent, and hide them again: the first draw of a view
+/// (and of GTK's blur) dropped 2-3 frames of the first fade-in. Counts as a fade-out,
+/// so a `reveal` meanwhile takes over.
+pub fn warm(ws: &[gtk::Widget], done: impl Fn() + 'static) {
+    let done = Rc::new(done);
+    // shortcut: a click in these 100 ms lands on the invisible palette (closes it, a no-op)
+    for w in ws.iter().filter(|w| !w.is_visible()) {
+        w.set_opacity(0.02);
+        w.set_visible(true);
+        let d = done.clone();
+        fade(w, 0.0, 100.0, move |w| {
+            w.set_visible(false);
+            w.set_opacity(1.0);
+            d();
+        });
+    }
 }
 
 /// Fade `w` out, then hide it and run `done`.

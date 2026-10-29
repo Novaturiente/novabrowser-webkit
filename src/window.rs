@@ -293,6 +293,22 @@ fn build_window(slot: usize) {
     });
     apply_layout();
     window.present();
+    // once the first page is up: draw the palette and its blur once, unseen (anim::warm)
+    glib::timeout_add_local_once(Duration::from_millis(1500), move || {
+        in_slot(slot, || {
+            let Some((p, b, page)) = S.with_borrow(|s| {
+                Some((s.palette.clone()?, s.backdrop.clone()?, s.tabs.get(s.active)?.view.clone()?))
+            }) else {
+                return;
+            };
+            if modes::mode() == Mode::Command {
+                return;
+            }
+            set_backdrop(&b, Some(&page));
+            let b2 = b.clone();
+            crate::anim::warm(&[p.upcast(), b.upcast()], move || set_backdrop(&b2, None));
+        })
+    });
     let session = if private || STARTED.replace(true) {
         None
     } else {
@@ -1283,6 +1299,11 @@ pub fn set_cmdline_text(text: &str) {
 }
 
 pub fn show_completion(json: Option<&str>) {
+    // closing (completion::reset): keep the list while the palette fades out, or the
+    // card snaps to one line first; nova.cmdline clears it on the next open (W15)
+    if json.is_none() && modes::mode() != Mode::Command {
+        return;
+    }
     palette_js(&format!("nova.complete({})", json.unwrap_or("null")));
 }
 
