@@ -60,7 +60,11 @@ wait_for '"title":"four"' 5 && [ "$(ntabs)" = "$n" ] && ok "undo reopens the clo
 
 # find: match count, not found
 "$bin" --cmd "/link" >/dev/null
-wait_for '"message":"info: 2 matches"' 5 && ok "find counts matches" || fail "find: $(q)"
+wait_for '"message":"find: link\\t1 / 2"' 5 && ok "find counts matches" || fail "find: $(q)"
+"$bin" --cmd "search-next" >/dev/null
+wait_for '"message":"find: link\\t2 / 2"' 5 && ok "n moves the find position" || fail "find next: $(q)"
+"$bin" --cmd "search-next" >/dev/null
+wait_for '"message":"find: link\\t1 / 2"' 5 && ok "find position wraps" || fail "find wrap: $(q)"
 "$bin" --cmd "/zzqqxx" >/dev/null
 wait_for 'not found on page' 5 && ok "find reports no match" || fail "find none: $(q)"
 

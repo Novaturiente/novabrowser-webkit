@@ -137,8 +137,8 @@ pub fn connect(view: &WebView) {
         let w = view.downgrade();
         fc.connect_found_text(move |_, n| {
             if let Some(v) = w.upgrade() {
-                let text = if n == 1 { "1 match".to_string() } else { format!("{n} matches") };
-                window::in_owner(&v, || window::message("info", &text));
+                let text = crate::commands::find_shown(n);
+                window::in_owner(&v, || window::message("find", &text));
             }
         });
         let w = view.downgrade();

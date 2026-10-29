@@ -6,8 +6,9 @@ use crate::theme::{self, TitleFields};
 use crate::{config, history, tabview, web};
 use gtk::prelude::*;
 use gtk::glib;
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 use std::time::Duration;
 use webkit6::prelude::*;
 use webkit6::WebView;
@@ -36,6 +37,8 @@ pub struct Tab {
     pub typed: bool,
     pub fresh: bool,
     pub icon: String,
+    /// Stable id for the tab bar's element (animated open/close/move).
+    pub key: u64,
 }
 
 #[derive(Default)]
@@ -54,6 +57,8 @@ pub struct State {
     menu: Option<WebView>,
     /// the open question (permissions.rs queue), spotlight-style under the tab bar
     ask: Option<WebView>,
+    /// messages and the find count, a pill at the bottom centre (ui/toast.html)
+    toast: Option<WebView>,
     keyhint_gen: u64,
     compact: bool,
     pub tabs: Vec<Tab>,
@@ -118,7 +123,7 @@ fn owner(id: usize) -> Option<usize> {
     WINS.with_borrow(|w| {
         w.iter().position(|s| {
             s.tabs.iter().any(|t| vid(&t.view) == Some(id))
-                || [&s.tabbar, &s.palette, &s.keyhint, &s.tip, &s.menu, &s.ask]
+                || [&s.tabbar, &s.palette, &s.keyhint, &s.tip, &s.menu, &s.ask, &s.toast]
                     .iter()
                     .any(|v| vid(v) == Some(id))
         })
@@ -217,6 +222,7 @@ fn build_window(slot: usize) {
     let tip = ui("popup");
     let menu = ui("popup");
     let ask = ui("prompt");
+    let toast = ui("toast");
     let backdrop = gtk::Picture::new();
     backdrop.add_css_class("nova-backdrop");
     backdrop.set_content_fit(gtk::ContentFit::Fill);
@@ -239,7 +245,7 @@ fn build_window(slot: usize) {
             gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
         );
     });
-    for (v, parent) in [(&palette, &content), (&keyhint, &content), (&ask, &content), (&tip, &root), (&menu, &root)] {
+    for (v, parent) in [(&palette, &content), (&keyhint, &content), (&ask, &content), (&toast, &content), (&tip, &root), (&menu, &root)] {
         v.set_visible(false);
         parent.add_overlay(v);
     }
@@ -257,6 +263,11 @@ fn build_window(slot: usize) {
     ask.set_halign(gtk::Align::Center);
     ask.set_valign(gtk::Align::Start);
     ask.set_margin_top(12);
+    toast.set_can_target(false);
+    toast.set_can_focus(false);
+    toast.set_halign(gtk::Align::Center);
+    toast.set_valign(gtk::Align::End);
+    toast.set_margin_bottom(18);
     ask.set_background_color(&gtk::gdk::RGBA::new(0.0, 0.0, 0.0, 0.0));
     palette.set_halign(gtk::Align::Fill);
     for v in [&tip, &menu] {
@@ -289,6 +300,7 @@ fn build_window(slot: usize) {
         s.tip = Some(tip);
         s.menu = Some(menu);
         s.ask = Some(ask);
+        s.toast = Some(toast);
         (s.start_url.clone(), s.startup.take(), s.private)
     });
     apply_layout();
@@ -388,7 +400,15 @@ fn new_tab(view: Option<WebView>, url: String, title: String) -> Tab {
         typed: TYPED_NEXT.get(),
         fresh: true,
         icon: String::new(),
+        key: {
+            TAB_KEY.set(TAB_KEY.get() + 1);
+            TAB_KEY.get()
+        },
     }
+}
+
+thread_local! {
+    static TAB_KEY: Cell<u64> = const { Cell::new(0) };
 }
 
 fn add_tab(tab: Tab, foreground: bool) {
@@ -822,7 +842,8 @@ pub fn refresh() {
                 let pinned = t.pinned && i != s.active;
                 let label = theme::format_title(if pinned { &pin_fmt } else { &tab_fmt }, &fields(i, t));
                 format!(
-                    "{{\"t\":{},\"i\":{},\"a\":{},\"l\":{},\"p\":{},\"e\":{},\"n\":{},\"z\":{}}}",
+                    "{{\"k\":{},\"t\":{},\"i\":{},\"a\":{},\"l\":{},\"p\":{},\"e\":{},\"n\":{},\"z\":{}}}",
+                    t.key,
                     js_str(&label),
                     js_str(&t.icon),
                     i == s.active,
@@ -1206,6 +1227,7 @@ pub fn message(level: &str, text: &str) {
         s.message_id
     });
     refresh();
+    show_toast(level, text);
     let ms = config::get().int("messages.timeout");
     if ms > 0 {
         let slot = CUR.get();
@@ -1215,10 +1237,24 @@ pub fn message(level: &str, text: &str) {
                     S.with_borrow_mut(|s| s.message_id == id && s.message.take().is_some());
                 if cleared {
                     refresh();
+                    if let Some(t) = S.with_borrow(|s| s.toast.clone()) {
+                        crate::anim::conceal(&t, || {});
+                    }
                 }
             })
         });
     }
+}
+
+/// The message as a pill at the bottom centre, sized to its text (~8 px a character).
+fn show_toast(level: &str, text: &str) {
+    let Some((t, content)) = S.with_borrow(|s| Some((s.toast.clone()?, s.content.clone()?))) else {
+        return;
+    };
+    let max = (content.width() - 40).max(160);
+    let w = (text.chars().count() as i32 * 8 + 70).clamp(140, max.min(720));
+    t.set_size_request(w, 46);
+    crate::anim::reveal(&t, &format!("nova.toast({}, {})", js_str(level), js_str(text)), &[]);
 }
 
 /// Show `text` once the window is up (startup config errors).
@@ -1305,6 +1341,51 @@ pub fn show_completion(json: Option<&str>) {
         return;
     }
     palette_js(&format!("nova.complete({})", json.unwrap_or("null")));
+    if let Some(j) = json {
+        completion_icons(j);
+    }
+}
+
+thread_local! {
+    /// page URL -> site icon as a data: URL ("" = none known), for completion rows
+    static ICONS: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
+}
+
+/// Site icons for the completion rows with a web address, from WebKit's icon store (no
+/// network): cached ones at once, the rest as each lookup answers. Same URL rule as palette.html.
+fn completion_icons(json: &str) {
+    let Ok(v) = serde_json::from_str::<Value>(json) else { return };
+    let urls: Vec<String> = v["items"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .take(40)
+        .filter_map(|it| {
+            it.as_array()?.iter().filter_map(|x| x.as_str()).find(|x| x.starts_with("http://") || x.starts_with("https://")).map(str::to_string)
+        })
+        .collect();
+    let known: Map<String, Value> = ICONS.with_borrow(|c| {
+        urls.iter().filter_map(|u| Some((u.clone(), Value::from(c.get(u)?.clone())))).filter(|(_, d)| d != "").collect()
+    });
+    if !known.is_empty() {
+        palette_js(&format!("nova.icons({})", Value::Object(known)));
+    }
+    let Some(db) = web::session().website_data_manager().and_then(|m| m.favicon_database()) else {
+        return;
+    };
+    let slot = CUR.get();
+    for u in urls {
+        if ICONS.with_borrow(|c| c.contains_key(&u)) {
+            continue;
+        }
+        ICONS.with_borrow_mut(|c| c.insert(u.clone(), String::new()));
+        db.favicon(&u.clone(), None::<&gtk::gio::Cancellable>, move |r| {
+            let Ok(t) = r else { return };
+            let data = format!("data:image/png;base64,{}", glib::base64_encode(&t.save_to_png_bytes()));
+            ICONS.with_borrow_mut(|c| c.insert(u.clone(), data.clone()));
+            in_slot(slot, || palette_js(&format!("nova.icons({})", json!({ u: data }))));
+        });
+    }
 }
 
 /// Full content area, or a top strip one input tall when compact.
@@ -1746,7 +1827,7 @@ fn push_theme() {
     })
     .to_string();
     let views = S.with_borrow(|s| {
-        [&s.tabbar, &s.palette, &s.keyhint, &s.tip, &s.menu, &s.ask]
+        [&s.tabbar, &s.palette, &s.keyhint, &s.tip, &s.menu, &s.ask, &s.toast]
             .into_iter()
             .flatten()
             .cloned()

@@ -1,0 +1,35 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>toast</title>
+<style>
+  /* Messages (info / warning / error / find) as a floating pill at the bottom centre.
+     Never focused or clicked; window.rs sizes and fades it (anim.rs). */
+  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
+  body { box-sizing: border-box; padding: 6px; display: flex; }
+  #t { flex: 1; display: flex; align-items: center; gap: 10px; padding: 0 18px 0 8px; border-radius: 999px;
+       white-space: nowrap; overflow: hidden; font: var(--fonts-messages-info, var(--fonts-statusbar, 10pt sans-serif));
+       background: var(--colors-messages-info-bg, #333); color: var(--colors-messages-info-fg, #eee);
+       border: 1px solid var(--colors-completion-category-border-top, #444); box-shadow: 0 2px 5px rgba(0, 0, 0, .35); }
+  #t span { overflow: hidden; text-overflow: ellipsis; }
+  #i { flex: 0 0 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-weight: bold;
+       background: color-mix(in srgb, currentColor 18%, transparent); }
+  #t.warning { background: var(--colors-messages-warning-bg); color: var(--colors-messages-warning-fg); }
+  #t.error { background: var(--colors-messages-error-bg); color: var(--colors-messages-error-fg); }
+  #t.find b { font-variant-numeric: tabular-nums; opacity: .75; font-weight: normal; }
+</style>
+<body><div id="t"><span id="i"></span><span id="m"></span></div>
+<script>
+  nova.theme = (t) => { for (const [k, v] of Object.entries(t.vars)) document.documentElement.style.setProperty(k, v); };
+  // nova.toast(level, text); find: text = "query\tpos" (pos like "3 / 12")
+  nova.toast = (level, text) => {
+    document.getElementById("t").className = level;
+    document.getElementById("i").textContent = { info: "i", warning: "!", error: "\u00d7", find: "🔍" }[level] || "i";
+    const m = document.getElementById("m");
+    if (level === "find") {
+      const [q, pos] = text.split("\t");
+      m.replaceChildren(q, " ", Object.assign(document.createElement("b"), { textContent: pos || "" }));
+    } else m.textContent = text;
+  };
+  nova.send("ready");
+</script>
+</body>

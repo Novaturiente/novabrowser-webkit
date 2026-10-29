@@ -11,32 +11,56 @@
   #card.in { animation: pop 160ms cubic-bezier(.2, .8, .2, 1); }
   @keyframes pop { from { transform: translateY(-10px) scale(.98); } }
   @media (prefers-reduced-motion: reduce) { #card.in { animation: none; } }
+  /* Floating pieces over the blurred page: the input is a pill, each completion
+     category its own card below it; one list for the keys (the core moves `sel`). */
   #card { position: relative; margin: 10vh auto 0; width: min(760px, 86vw); box-sizing: border-box;
-          border-radius: 14px; overflow: hidden; background: var(--colors-completion-even-bg, #222);
-          border: 1px solid var(--colors-completion-category-border-top, #444);
-          box-shadow: 0 18px 50px rgba(0, 0, 0, .55); }
+          display: flex; flex-direction: column; gap: 10px; }
+  #bar { display: flex; align-items: center; gap: 12px; padding: 0 20px; height: 52px; border-radius: 999px;
+         background: var(--colors-completion-even-bg, #222);
+         border: 1px solid var(--colors-completion-category-border-top, #444);
+         box-shadow: 0 14px 40px rgba(0, 0, 0, .5); }
+  #bar:focus-within { border-color: color-mix(in srgb, var(--colors-completion-category-fg, #48f) 55%, transparent); }
+  #icon { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+          font-weight: bold; color: var(--colors-completion-category-fg, #48f);
+          background: color-mix(in srgb, var(--colors-completion-category-fg, #48f) 18%, transparent); }
   body.compact { background: var(--colors-completion-even-bg, #222); }
-  body.compact #card { margin: 0; width: 100%; height: 100%; border-radius: 0; border: 0; box-shadow: none;
-                       display: flex; align-items: center; }
-  body.compact #list, body.compact #title { display: none; }
+  body.compact #card { margin: 0; width: 100%; height: 100%; }
+  body.compact #bar { height: 100%; border-radius: 0; border: 0; box-shadow: none; }
+  body.compact #list { display: none; }
   #cmd::placeholder { color: inherit; opacity: .45; }
-  #cmd { display: block; width: 100%; box-sizing: border-box; padding: 12px 16px; border: 0; outline: 0;
+  #cmd { flex: 1; min-width: 0; box-sizing: border-box; padding: 0; border: 0; outline: 0;
          background: transparent; color: var(--colors-statusbar-command-fg, inherit);
          font: var(--fonts-statusbar, 11pt monospace); font-size: 1.15em; }
-  #title { padding: 6px 16px 3px; font: var(--fonts-completion-category, bold 10pt monospace);
-           color: var(--colors-completion-category-fg); border-top: 1px solid var(--colors-completion-category-border-top, #333); }
-  #title:empty, #list:empty { display: none; }
-  #list { max-height: var(--palette-list-height, 40vh); overflow-y: auto; scrollbar-width: none; padding: 0 6px 6px; }
+  #list { position: relative; max-height: var(--palette-list-height, 40vh); overflow-y: auto; scrollbar-width: none;
+          display: flex; flex-direction: column; gap: 10px;
+          /* room for the cards' shadows inside the scroll box, which clips them */
+          padding: 0 18px 24px; margin: 0 -18px; }
+  #list:empty { display: none; }
   body.tall #list { max-height: 70vh; }
-  .cat { padding: 6px 10px 3px; font: var(--fonts-completion-category, bold 10pt monospace);
+  .grp { position: relative; padding: 4px 6px 6px; border-radius: 18px;
+         background: var(--colors-completion-even-bg, #222);
+         border: 1px solid var(--colors-completion-category-border-top, #444);
+         box-shadow: 0 6px 16px rgba(0, 0, 0, .35); }
+  .cat { display: flex; gap: 8px; padding: 6px 10px 4px; font: var(--fonts-completion-category, bold 10pt monospace);
          color: var(--colors-completion-category-fg); }
-  .row { display: flex; padding: 5px 10px; white-space: nowrap; border-radius: 8px; }
-  .row.sel { color: var(--colors-completion-item-selected-fg); background: var(--colors-completion-item-selected-bg); }
-  .a { flex: 0 1 60%; overflow: hidden; text-overflow: ellipsis; padding-right: 12px; }
+  .cat small { font: inherit; font-weight: normal; opacity: .6; }
+  /* the selection highlight slides between rows, across cards (positioned in #list) */
+  #hl { position: absolute; left: 0; top: 0; z-index: 1; border-radius: 10px; pointer-events: none;
+        background: var(--colors-completion-item-selected-bg);
+        box-shadow: inset 3px 0 0 var(--colors-completion-category-fg, #48f);
+        transition: transform 140ms cubic-bezier(.2, .8, .2, 1), width 140ms, height 140ms; }
+  #hl.jump { transition: none; }
+  @media (prefers-reduced-motion: reduce) { #hl { transition: none; } }
+  .row { position: relative; z-index: 2; display: flex; align-items: center; gap: 10px; padding: 6px 12px;
+         white-space: nowrap; border-radius: 10px; }
+  .row.sel { color: var(--colors-completion-item-selected-fg); }
+  .row img, .row .fi { flex: 0 0 16px; width: 16px; height: 16px; border-radius: 4px; }
+  .row .fi { background: color-mix(in srgb, currentColor 15%, transparent); }
+  .a { flex: 0 1 60%; overflow: hidden; text-overflow: ellipsis; }
   .b { flex: 1; overflow: hidden; text-overflow: ellipsis; opacity: .65; }
 </style>
 <body>
-<div id="card"><input id="cmd" spellcheck="false"><div id="title"></div><div id="list"></div></div>
+<div id="card"><div id="bar"><span id="icon"></span><input id="cmd" spellcheck="false"></div><div id="list"></div></div>
 <script>
   const $ = (id) => document.getElementById(id);
   nova.theme = (t) => {
@@ -46,28 +70,77 @@
   // Completion: nova.complete({title, items: [[text, description]], sel}) or null.
   const list = $("list");
   // cats (optional): category per item; a header row goes where it changes.
+  // One card per category (cats[i]; none = one card titled s.title). Rows with a web
+  // address get the site icon from nova.icons (window.rs, WebKit's icon store).
+  const icons = new Map();
+  const urlOf = (a, b) => [a, b].find((x) => /^https?:\/\//.test(x || "")) || "";
+  const hl = document.createElement("div");
+  hl.id = "hl";
+  let lastItems = null;
   nova.complete = (s) => {
-    $("title").textContent = s ? s.title : "";
+    const items = s ? s.items : [];
     const cats = (s && s.cats) || [];
-    list.replaceChildren(...(s ? s.items : []).flatMap(([a, b], i) => {
-      const head = [];
-      if (cats[i] && cats[i] !== cats[i - 1]) {
-        const h = document.createElement("div");
-        h.className = "cat";
-        h.textContent = cats[i];
-        head.push(h);
+    // same list, only `sel` moved: slide the highlight, don't rebuild
+    if (s && lastItems === JSON.stringify([items, cats])) return select(s.sel, true);
+    lastItems = s ? JSON.stringify([items, cats]) : null;
+    const count = {};
+    cats.forEach((c) => { count[c] = (count[c] || 0) + 1; });
+    const groups = [];
+    let grp = null;
+    items.forEach(([a, b], i) => {
+      const cat = cats[i] || (s && s.title) || "";
+      if (!grp || cat !== (cats[i - 1] || (s && s.title) || "")) {
+        grp = document.createElement("div");
+        grp.className = "grp";
+        if (cat) {
+          const h = document.createElement("div");
+          h.className = "cat";
+          h.append(cat);
+          if (count[cat]) h.append(Object.assign(document.createElement("small"), { textContent: count[cat] }));
+          grp.append(h);
+        }
+        groups.push(grp);
       }
       const row = document.createElement("div");
-      row.className = i === s.sel ? "row sel" : "row";
+      row.className = "row";
+      const u = urlOf(a, b);
+      if (u) {
+        row.dataset.u = u;
+        row.append(icons.get(u) ? Object.assign(document.createElement("img"), { src: icons.get(u) }) : Object.assign(document.createElement("span"), { className: "fi" }));
+      }
       for (const [cls, text] of [["a", a], ["b", b]]) {
         const d = document.createElement("div");
         d.className = cls;
         d.textContent = text;
         row.append(d);
       }
-      return [...head, row];
-    }));
-    if (s) list.querySelectorAll(".row")[s.sel]?.scrollIntoView({ block: "nearest" });
+      grp.append(row);
+    });
+    list.replaceChildren(...groups);
+    if (groups.length) list.append(hl);
+    if (s) select(s.sel, false);
+  };
+  const select = (sel, slide) => {
+    const rows = list.querySelectorAll(".row");
+    rows.forEach((r, i) => r.classList.toggle("sel", i === sel));
+    const r = rows[sel];
+    hl.style.display = r ? "" : "none";
+    if (!r) return;
+    const lr = list.getBoundingClientRect(), rr = r.getBoundingClientRect();
+    hl.classList.toggle("jump", !slide);
+    hl.style.width = rr.width + "px";
+    hl.style.height = rr.height + "px";
+    hl.style.transform = `translate(${rr.left - lr.left}px, ${rr.top - lr.top + list.scrollTop}px)`;
+    r.scrollIntoView({ block: "nearest" });
+  };
+  // nova.icons({url: data-url}): fill in site icons as WebKit's icon store answers
+  nova.icons = (m) => {
+    for (const [u, src] of Object.entries(m)) {
+      icons.set(u, src);
+      for (const r of list.querySelectorAll(".row")) {
+        if (r.dataset.u === u && r.querySelector(".fi")) r.querySelector(".fi").replaceWith(Object.assign(document.createElement("img"), { src }));
+      }
+    }
   };
   // cmd-set-text: show the input with text, cursor at the end. compact = search (no backdrop).
   // `:open [-t|-b|-w] ` is kept out of sight (o/O just ask for an address, like Zen);
@@ -82,6 +155,7 @@
     document.body.classList.toggle("tall", pre === ":bindings ");
     c.placeholder = !pre ? "" : pre === ":bindings " ? "Filter key bindings…  (Esc closes)" : pre === ":profile-new " ? "Name for the new profile…" : / -[tw]/.test(pre) ? "Open in new tab…" : / -b/.test(pre) ? "Open in background tab…" : "Search or enter address…";
     c.setSelectionRange(c.value.length, c.value.length);
+    $("icon").textContent = pre.startsWith(":open") ? "🔍" : pre ? "›" : ":";
   };
   nova.cmdline = (text, compact) => {
     document.body.className = compact ? "compact" : "";

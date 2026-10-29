@@ -73,6 +73,7 @@ const PALETTE_HTML: &str = include_str!("../ui/palette.html");
 const KEYHINT_HTML: &str = include_str!("../ui/keyhint.html");
 const POPUP_HTML: &str = include_str!("../ui/popup.html");
 const PROMPT_HTML: &str = include_str!("../ui/prompt.html");
+const TOAST_HTML: &str = include_str!("../ui/toast.html");
 
 /// Profile data dir + cache dir: cookies, local storage, cache live there.
 pub fn init(data: &std::path::Path, cache: &std::path::Path) {
@@ -339,6 +340,7 @@ fn serve_ui(req: &URISchemeRequest) {
         Some("/keyhint") | Some("keyhint") => KEYHINT_HTML,
         Some("/popup") | Some("popup") => POPUP_HTML,
         Some("/prompt") | Some("prompt") => PROMPT_HTML,
+        Some("/toast") | Some("toast") => TOAST_HTML,
         _ => return not_found(req),
     };
     respond(req, html, "text/html");

@@ -62,7 +62,10 @@
       :host { all: initial; position: fixed; inset: 0; z-index: 2147483647; pointer-events: none; }
       div { position: fixed; font: ${st.font}; color: ${st.fg}; background: ${st.bg}; border: ${st.border};
             border-radius: ${st.radius}; padding: ${st.padding}; line-height: 1.15; white-space: nowrap; }
-      div[hidden] { display: none; } b { color: ${st.match}; font-weight: inherit; }`;
+      div[hidden] { display: none; } b { color: ${st.match}; font-weight: inherit; }
+      div { animation: pop 110ms ease-out; transform-origin: top left; }
+      @keyframes pop { from { opacity: 0; transform: scale(.7); } }
+      @media (prefers-reduced-motion: reduce) { div { animation: none; } }`;
     root.append(style);
     H.nodes = elems.map(([e, off], i) => {
       const r = e.getClientRects()[0];

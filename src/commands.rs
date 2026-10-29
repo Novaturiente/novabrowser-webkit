@@ -19,6 +19,23 @@ thread_local! {
     static FROM_BAR: Cell<bool> = const { Cell::new(false) };
     /// Last search (text, backward), for `n` / `N`.
     static SEARCH: RefCell<(String, bool)> = const { RefCell::new((String::new(), false)) };
+    /// Find position for the toast: (current 1-based, total, total still unknown).
+    static FIND: Cell<(i64, i64, bool)> = const { Cell::new((0, 0, false)) };
+}
+
+/// found-text from WebKit: the first answer after a new search carries the total; `n` / `N`
+/// moved the position. Returns "text\tpos / total" for the toast.
+pub fn find_shown(count: u32) -> String {
+    let (mut pos, mut total, fresh) = FIND.get();
+    if fresh {
+        total = count as i64;
+    }
+    if total > 0 {
+        pos = (pos - 1).rem_euclid(total) + 1;
+    }
+    FIND.set((pos, total, false));
+    let text = SEARCH.with_borrow(|s| s.0.clone());
+    format!("{text}\t{pos} / {total}")
 }
 
 fn expand(text: &str) -> String {
@@ -116,6 +133,7 @@ pub fn search(text: &str, backward: bool) -> Result<(), String> {
         fc.search_finish();
         return Ok(());
     }
+    FIND.set((1, 0, true));
     fc.search(text, find_options(text, backward).bits(), u32::MAX);
     Ok(())
 }
@@ -138,6 +156,8 @@ fn search_again(reverse: bool, n: u32) -> Result<(), String> {
     }
     let v = window::active_view().ok_or("no active tab")?;
     let fc = v.find_controller().ok_or("no find controller")?;
+    let (pos, total, fresh) = FIND.get();
+    FIND.set((pos + if reverse { -(n as i64) } else { n as i64 }, total, fresh));
     for _ in 0..n {
         if backward == reverse {
             fc.search_next()

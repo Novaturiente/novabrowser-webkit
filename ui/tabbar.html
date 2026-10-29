@@ -14,7 +14,20 @@
        padding: var(--tabs-padding, 0 5px); padding-left: 10px; padding-right: 10px; white-space: nowrap; overflow: hidden;
        font: var(--fonts-tabs-unselected, 10pt monospace);
        color: var(--colors-tabs-odd-fg); background: var(--colors-tabs-odd-bg);
-       transition: background 120ms; }
+       transition: background 120ms, flex-grow 180ms ease, padding 180ms ease, width 180ms ease, opacity 180ms ease; }
+  /* opening grows in, closing shrinks out (the element stays until it has, .out) */
+  .t.new { animation: tin 180ms ease-out; }
+  @keyframes tin { from { flex-grow: 0; opacity: 0; transform: scale(.85); } }
+  .t.out { flex-grow: 0 !important; padding: 0 !important; min-width: 0 !important; opacity: 0; pointer-events: none; }
+  body:not(.vertical) .t.n.out { width: 0 !important; }
+  @media (prefers-reduced-motion: reduce) { .t { transition: background 120ms; } .t.new { animation: none; } }
+  /* loading: a spinner in the icon's place */
+  .sp { flex: 0 0 auto; width: .95em; height: .95em; margin-right: .5em; border-radius: 50%; box-sizing: border-box;
+        border: 2px solid color-mix(in srgb, var(--colors-tabs-indicator-start) 25%, transparent);
+        border-top-color: var(--colors-tabs-indicator-start); animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  body:not(.vertical) .t.n:not(.a) .sp { margin-right: 0; }
+  body:not(.vertical) .t.n:not(.a) .sp + span { display: none; }
   .t span { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
             text-align: var(--tabs-title-alignment, left); }
   body:not(.vertical) .t { min-width: min(var(--tabs-min-width, 0px), 100%); }
@@ -26,8 +39,7 @@
   .t.a { font: var(--fonts-tabs-selected, 10pt monospace);
          color: var(--colors-tabs-selected-odd-fg); background: var(--colors-tabs-selected-odd-bg); }
   .t.a:nth-child(even) { color: var(--colors-tabs-selected-even-fg); background: var(--colors-tabs-selected-even-bg); }
-  /* load state as a ring inside the pill; a finished tab shows none */
-  .t.l { box-shadow: inset 0 0 0 2px var(--colors-tabs-indicator-start); }
+  /* a crashed tab: a red ring inside the pill */
   .t.e { box-shadow: inset 0 0 0 2px var(--colors-tabs-indicator-error); }
   .t.z { opacity: .5; }
   .t img { flex: 0 0 auto; width: 1.2em; height: 1.2em; margin-right: .4em; }
@@ -83,7 +95,11 @@
   };
   // Core → UI: nova.apply({tabs: [{t: label, a: active, l: loading, p: progress, e: crashed}],
   //   status: {mode, modename, cmd, keys, level, msg, loading, p, crashed}}).
-  let tipTimer, dragFrom = -1;
+  let tipTimer, dragFrom = -1, first = true;
+  // tab key (stable per tab, window.rs) -> its element: updated in place, so opening,
+  // closing and moving can animate
+  const els = new Map();
+  const idx = (d) => Number(d.dataset.i);
   // drag a tab onto another to move it there (the press already focused it, so move the active tab)
   document.onmouseup = () => { dragFrom = -1; };
   nova.apply = (s) => {
@@ -94,30 +110,54 @@
     $("keys").textContent = st.keys;
     $("dl").textContent = st.dl;
     $("dl").className = st.dlc;
-    $("msg").textContent = st.msg;
-    $("msg").className = st.level;
+    // messages show as a toast (ui/toast.html), not in the bar
     $("progress").style.width = st.loading ? Math.max(3, Math.round(st.p * 100)) + "%" : "0";
-    $("tabs").replaceChildren(...s.tabs.map((tab, i) => {
-      const d = document.createElement("div");
-      d.className = "t" + (tab.a ? " a" : "") + (tab.e ? " e" : tab.l ? " l" : " d") + (tab.n ? " n" : "") + (tab.z ? " z" : "");
-      if (tab.i) { const img = document.createElement("img"); img.src = tab.i; d.append(img); }
-      const label = document.createElement("span"); label.textContent = tab.t; d.append(label);
-      d.onmousedown = (e) => {
-        clearTimeout(tipTimer);
-        if (e.button === 0) { dragFrom = i; nova.send("tab " + i); }
-        if (e.button === 1) { e.preventDefault(); nova.send("close " + i); }
-        if (e.button === 2) { const r = d.getBoundingClientRect(); nova.send(`menu ${i} ${Math.round(e.clientX)} ${Math.round(r.bottom)} ${Math.round(r.right)}`); }
-      };
-      d.onmouseup = (e) => { if (e.button === 0 && dragFrom >= 0 && dragFrom !== i) nova.send("move " + i); };
-      d.oncontextmenu = (e) => e.preventDefault();
-      // hover: full title + URL after a short wait
-      d.onmouseenter = () => {
-        clearTimeout(tipTimer);
-        tipTimer = setTimeout(() => { const r = d.getBoundingClientRect(); nova.send(`tip ${i} ${Math.round(r.left)} ${Math.round(r.bottom)} ${Math.round(r.right)}`); }, 450);
-      };
-      d.onmouseleave = () => { clearTimeout(tipTimer); nova.send("tip -1"); };
-      return d;
-    }));
+    const box = $("tabs"), live = new Set();
+    s.tabs.forEach((tab, i) => {
+      live.add(tab.k);
+      let d = els.get(tab.k);
+      if (!d) {
+        d = document.createElement("div");
+        els.set(tab.k, d);
+        if (!first) { d.classList.add("new"); d.addEventListener("animationend", () => d.classList.remove("new"), { once: true }); }
+        d.onmousedown = (e) => {
+          const i = idx(d);
+          clearTimeout(tipTimer);
+          if (e.button === 0) { dragFrom = i; nova.send("tab " + i); }
+          if (e.button === 1) { e.preventDefault(); nova.send("close " + i); }
+          if (e.button === 2) { const r = d.getBoundingClientRect(); nova.send(`menu ${i} ${Math.round(e.clientX)} ${Math.round(r.bottom)} ${Math.round(r.right)}`); }
+        };
+        d.onmouseup = (e) => { if (e.button === 0 && dragFrom >= 0 && dragFrom !== idx(d)) nova.send("move " + idx(d)); };
+        d.oncontextmenu = (e) => e.preventDefault();
+        // hover: full title + URL after a short wait
+        d.onmouseenter = () => {
+          clearTimeout(tipTimer);
+          tipTimer = setTimeout(() => { const r = d.getBoundingClientRect(); nova.send(`tip ${idx(d)} ${Math.round(r.left)} ${Math.round(r.bottom)} ${Math.round(r.right)}`); }, 450);
+        };
+        d.onmouseleave = () => { clearTimeout(tipTimer); nova.send("tip -1"); };
+      }
+      d.dataset.i = i;
+      const cls = "t" + (tab.a ? " a" : "") + (tab.e ? " e" : tab.l ? " l" : " d") + (tab.n ? " n" : "") + (tab.z ? " z" : "") + (d.classList.contains("new") ? " new" : "");
+      if (d.className !== cls) d.className = cls;
+      const sig = [tab.l, tab.i, tab.t].join("\n");
+      if (d.dataset.sig !== sig) {
+        d.dataset.sig = sig;
+        const icon = tab.l ? Object.assign(document.createElement("i"), { className: "sp" })
+          : tab.i ? Object.assign(document.createElement("img"), { src: tab.i }) : null;
+        const label = document.createElement("span"); label.textContent = tab.t;
+        d.replaceChildren(...(icon ? [icon] : []), label);
+      }
+      // keep DOM order = tab order (moves keep the element); closing ones stay where they were
+      const want = [...box.children].filter((x) => !x.classList.contains("out"))[i];
+      if (want !== d) box.insertBefore(d, want || null);
+    });
+    for (const [k, d] of els) {
+      if (live.has(k)) continue;
+      els.delete(k);
+      d.classList.add("out");
+      setTimeout(() => d.remove(), 200);
+    }
+    first = false;
     document.querySelector(".t.a")?.scrollIntoView({ block: "nearest", inline: "nearest" });
   };
   $("dl").onmousedown = (e) => { e.stopPropagation(); nova.send("run downloads"); };
