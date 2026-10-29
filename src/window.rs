@@ -199,6 +199,9 @@ fn build_window(slot: usize) {
     content.set_vexpand(true);
     root.set_child(Some(&outer));
     window.set_child(Some(&root));
+    for o in [&root, &content] {
+        o.connect_get_child_position(fixed_overlay_position);
+    }
     let ui = |name: &str| {
         web::chrome_view(name, move |text| {
             in_slot(slot, || ui_message(text));
@@ -872,6 +875,8 @@ pub fn state_json() -> String {
             "tabs": s.tabs.iter().map(|t| json!({"url": t.url, "title": t.title, "pinned": t.pinned, "loaded": t.view.is_some(), "crashed": t.crashed.is_some(), "asleep": t.asleep, "muted": t.muted, "keep": t.keep})).collect::<Vec<_>>(),
             "private": s.private,
             "suggestions": crate::passwords::suggestions(),
+            // on-screen size of the tooltip/password popup while shown
+            "popup": s.tip.as_ref().filter(|v| v.is_visible()).map(|v| [v.width(), v.height()]),
             "fullscreen": s.window.as_ref().is_some_and(|w| w.is_fullscreen()),
             "active": s.active,
             "url": s.tabs.get(s.active).map(|t| t.url.as_str()),
@@ -1264,6 +1269,29 @@ fn place_palette() {
         p.set_valign(gtk::Align::Fill);
         p.set_size_request(-1, -1);
     }
+}
+
+/// Overlay views with a size request (popups, prompt, key hints) get exactly that size,
+/// placed by their align + margins: a WebView's natural size is its page's content size,
+/// so the default placement grew the password list to the window's edge.
+fn fixed_overlay_position(o: &gtk::Overlay, child: &gtk::Widget) -> Option<gtk::gdk::Rectangle> {
+    let (w, h) = child.size_request();
+    if w <= 0 || h <= 0 {
+        return None;
+    }
+    let bw = child.margin_start() + w + child.margin_end();
+    let bh = child.margin_top() + h + child.margin_bottom();
+    let at = |a: gtk::Align, outer: i32, inner: i32| match a {
+        gtk::Align::End => outer - inner,
+        gtk::Align::Center => (outer - inner) / 2,
+        _ => 0,
+    };
+    Some(gtk::gdk::Rectangle::new(
+        at(child.halign(), o.width(), bw),
+        at(child.valign(), o.height(), bh),
+        bw,
+        bh,
+    ))
 }
 
 /// Show a root-overlay popup at window coords (x, y), size (w, h), kept inside, and run `js`.

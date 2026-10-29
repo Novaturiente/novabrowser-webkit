@@ -97,6 +97,8 @@ wait_for '"prompt":"Save this login for carol on 127.0.0.1' 15 && ok "10.6 split
 # 10.2/10.3 focusing a login field shows the list (never preselected); Down Enter fills
 "$bin" --cmd "open $base/login.html?x=2" >/dev/null   # autofocus on the user field
 wait_for '"suggestions":2' 15 && ok "10.2 focused login field shows 2 suggestions" || fail "10.2 list: $(q)"
+# the list keeps its requested size (360 wide), not the page's content size up to the window edge
+wait_for '"popup":\[3[0-9]{2},(9[0-9]|1[0-4][0-9])\]' 5 && ok "10.2 suggestion list is popup-sized" || fail "10.2 popup size: $(q | grep -o '"popup":[^]]*]')"
 "$bin" --key '<Down><Return>' >/dev/null
 wait_for '"title":"user=alice pass=hunter2"' 15 && ok "10.3 Down, Enter fills the first row" || fail "10.3 keys: $(q)"
 
