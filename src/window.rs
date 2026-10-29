@@ -1138,10 +1138,11 @@ pub fn set_prompt(p: Option<(String, Vec<[&'static str; 2]>)>) {
     let Some((q, opts)) = p else {
         return view.set_visible(false);
     };
-    let w = (content.width() - 24).clamp(200, 560);
-    // shortcut: line count guessed at ~8 px per character; prompt.html clamps to 4 lines
-    let lines = (q.chars().count() as i32 * 8 / (w - 32) + 1).min(4);
-    view.set_size_request(w, 28 + 20 * lines + 12 + 32);
+    let w = (content.width() - 24).clamp(240, 640);
+    // shortcut: line count guessed at ~9 px per character; prompt.html clamps to 3 lines
+    let lines = (q.chars().count() as i32 * 9 / (w - 100) + 1).min(3);
+    // body padding 10+10, card (56 px or 20 px lines + 20), gap 14, buttons 40, shadow room
+    view.set_size_request(w, 20 + (20 * lines + 22).max(56) + 14 + 40 + 6);
     view.set_visible(true);
     web::eval_page(&view, &format!("nova.ask({})", json!({"q": q, "opts": opts})));
 }

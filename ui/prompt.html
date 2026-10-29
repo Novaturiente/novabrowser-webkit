@@ -2,36 +2,49 @@
 <meta charset="utf-8">
 <title>prompt</title>
 <style>
-  /* Spotlight-style question under the tab bar: the question, then one button per answer.
+  /* Spotlight-style question under the tab bar: a pill with a "?" badge and the question,
+     then separate pill buttons below it (minor answers, No, then Yes on the right).
      Never focused: keys reach it through prompt mode (y/n/A/N, Escape = no); clicks send
-     "answer <key>". Theme vars from nova.theme. */
+     "answer <key>". Theme vars from nova.theme. window.rs sizes the view (see set_prompt). */
   html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
-  #box { box-sizing: border-box; height: 100%; padding: 14px 16px; border-radius: 14px;
-         display: flex; flex-direction: column; gap: 12px;
+  body { box-sizing: border-box; padding: 10px; display: flex; flex-direction: column; gap: 14px;
          font: var(--fonts-prompts, var(--fonts-statusbar, 10pt sans-serif));
-         background: var(--colors-prompts-bg, #222); color: var(--colors-prompts-fg, #eee);
-         border: 1px solid var(--colors-completion-category-border-top, #444); }
-  #q { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4;
-       overflow-wrap: anywhere; line-height: 1.4; }
-  #opts { display: flex; gap: 8px; margin-top: auto; }
-  button { flex: 1 1 0; font: inherit; padding: 6px 12px; border-radius: 999px; cursor: pointer;
+         color: var(--colors-prompts-fg, #eee); }
+  #card { display: flex; align-items: center; gap: 14px; padding: 10px 22px 10px 10px; min-height: 56px;
+          box-sizing: border-box; border-radius: 28px;
+          background: var(--colors-prompts-bg, #222);
+          border: 1px solid var(--colors-completion-category-border-top, #444);
+          box-shadow: 0 4px 14px rgba(0, 0, 0, .35); }
+  #badge { flex: 0 0 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
+           font-weight: bold; font-size: 1.2em;
+           color: var(--colors-tabs-indicator-start, #48f);
+           background: color-mix(in srgb, var(--colors-tabs-indicator-start, #48f) 20%, transparent); }
+  #q { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3;
+       overflow-wrap: anywhere; line-height: 20px; font-size: 1.1em; }
+  #opts { display: flex; justify-content: center; gap: 12px; }
+  button { font: inherit; min-width: 96px; height: 40px; padding: 0 20px; border-radius: 999px; cursor: pointer;
            border: 1px solid var(--colors-completion-category-border-top, #444);
-           background: var(--colors-completion-even-bg, #333); color: inherit; }
-  button:first-child { background: var(--colors-tabs-indicator-start, #48f); color: var(--colors-tabs-bar-bg, #000);
-                       border-color: transparent; font-weight: bold; }
-  button.minor { flex: 0 0 auto; opacity: .75; }
-  button:hover { filter: brightness(1.15); }
-  kbd { font: inherit; opacity: .6; margin-left: .5em; }
+           background: var(--colors-prompts-bg, #222); color: inherit;
+           box-shadow: 0 3px 10px rgba(0, 0, 0, .3); order: 1; }
+  /* answer "no": tinted with the error colour */
+  button.no { order: 2; color: var(--colors-messages-error-bg, #e55);
+              background: color-mix(in srgb, var(--colors-messages-error-bg, #e55) 14%, var(--colors-prompts-bg, #222));
+              border-color: color-mix(in srgb, var(--colors-messages-error-bg, #e55) 35%, transparent); }
+  /* answer "yes": the accent, rightmost */
+  button.yes { order: 3; font-weight: bold; border-color: transparent;
+               background: var(--colors-tabs-indicator-start, #48f); color: var(--colors-tabs-bar-bg, #000); }
+  button:hover { filter: brightness(1.12); }
+  kbd { font: inherit; opacity: .55; margin-left: .5em; }
 </style>
-<body><div id="box"><div id="q"></div><div id="opts"></div></div>
+<body><div id="card"><div id="badge">?</div><div id="q"></div></div><div id="opts"></div>
 <script>
   nova.theme = (t) => { for (const [k, v] of Object.entries(t.vars)) document.documentElement.style.setProperty(k, v); };
-  // nova.ask({q, opts: [[key, label], ...]}); the first two are the main answers, the rest minor
+  // nova.ask({q, opts: [[key, label], ...]}): y = yes (accent), n = no (red), others neutral
   nova.ask = (p) => {
     document.getElementById("q").textContent = p.q;
-    document.getElementById("opts").replaceChildren(...p.opts.map(([key, label], i) => {
+    document.getElementById("opts").replaceChildren(...p.opts.map(([key, label]) => {
       const b = document.createElement("button");
-      if (i > 1) b.className = "minor";
+      b.className = key === "y" ? "yes" : key === "n" ? "no" : "";
       b.append(label, Object.assign(document.createElement("kbd"), { textContent: key }));
       b.onmousedown = (e) => { e.preventDefault(); nova.send("answer " + key); };
       return b;
