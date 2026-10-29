@@ -44,7 +44,7 @@ edition (`chromium.*` here) are refused.
 - Small package: one Rust binary plus one web-process extension `.so`.
 - Things CEF could not do become native: restoring back/forward history,
   private (ephemeral) sessions, moving a live tab to another window, our own
-  TLS-error page, form-submit detection without page-world listeners.
+  TLS-error prompt, form-submit detection without page-world listeners.
 
 ## What it costs
 

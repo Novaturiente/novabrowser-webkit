@@ -15,7 +15,7 @@ adblock = { version = "0.13.3", default-features = false, features = ["embedded-
 gtk = { package = "gtk4", version = "0.11", features = ["v4_18"] }
 webkit6 = { version = "0.6", features = ["v2_52"] }
 # Shared with novabrowser (CEF); pinned rev, bump after pushing nova-core changes.
-nova-core = { git = "https://github.com/Novaturiente/nova-core", rev = "32568784b4043ebe555862d753d240b49ad6e227" }
+nova-core = { git = "https://github.com/Novaturiente/nova-core", rev = "7c1557b8ba610630c1e51e19c766bc9bcaf61665" }
 serde_json = "1.0.152"
 
 [profile.release]

@@ -148,6 +148,31 @@ sqlite3 $imp/History "CREATE TABLE urls(id INTEGER PRIMARY KEY, url TEXT, title 
   ('https://example.org/a','A',3,1,13300000000000000,0),('https://example.org/b','B',1,0,13300000000000000,0);"
 out=$("$bin" --import $imp 2>&1)
 echo "$out" | grep -q 'imported 2 Chromium' && ok "8.23 --import <dir> (Chromium History)" || fail "8.23 import: $out"
+# --import novabrowser: the CEF edition's data (merge history/marks, copy files we lack)
+cd_=$XDG_CONFIG_HOME/novabrowser; cdd=$XDG_DATA_HOME/novabrowser; mkdir -p $cd_ $cdd/sessions
+sqlite3 $cdd/history.sqlite "CREATE TABLE history(id INTEGER PRIMARY KEY, url TEXT NOT NULL UNIQUE, title TEXT NOT NULL DEFAULT '',
+  last_atime INTEGER NOT NULL, visits INTEGER NOT NULL DEFAULT 1, typed INTEGER NOT NULL DEFAULT 0);
+  CREATE TABLE cmd_history(id INTEGER PRIMARY KEY, cmd TEXT NOT NULL);
+  INSERT INTO history(url,title,last_atime,visits,typed) VALUES ('https://cef.example/x','From CEF',1790000000,5,2);
+  INSERT INTO cmd_history(cmd) VALUES ('open cef-cmd');"
+echo 'cq https://cef.example/q' > $cd_/quickmarks
+echo 'cef.example' > $cd_/https_excludes
+echo '{"https://cef.example":{"content.geolocation":true}}' > $cdd/permissions.json
+echo '{"windows":[]}' > $cdd/sessions/cefsess.json
+mkdir -p $XDG_CONFIG_HOME/$app; echo 'mine' > $XDG_CONFIG_HOME/$app/darkmode_excludes; echo 'theirs' > $cd_/darkmode_excludes
+out=$("$bin" --import novabrowser 2>&1)
+h=$XDG_DATA_HOME/$app/history.sqlite
+[ "$(sqlite3 $h "SELECT title||visits||typed FROM history WHERE url='https://cef.example/x'")" = "From CEF52" ] \
+  && [ "$(sqlite3 $h "SELECT count(*) FROM cmd_history WHERE cmd='open cef-cmd'")" = 1 ] \
+  && ok "8.23 --import novabrowser merges history and cmd history" || fail "8.23 cef history: $out"
+grep -q '^cq https://cef.example/q' $XDG_CONFIG_HOME/$app/quickmarks && ok "8.23 --import novabrowser merges quickmarks" || fail "8.23 cef marks: $out"
+[ -f $XDG_CONFIG_HOME/$app/https_excludes ] && [ -f $XDG_DATA_HOME/$app/permissions.json ] && [ -f $XDG_DATA_HOME/$app/sessions/cefsess.json ] \
+  && [ "$(cat $XDG_CONFIG_HOME/$app/darkmode_excludes)" = mine ] \
+  && ok "8.23 --import novabrowser copies files, keeps existing ones" || fail "8.23 cef files: $out"
+out=$("$bin" --import novabrowser 2>&1)
+echo "$out" | grep -q 'copied 0 files' && echo "$out" | grep -q 'and 0 commands' && echo "$out" | grep -q '0 new quickmarks' \
+  && ok "8.23 --import novabrowser twice changes nothing" || fail "8.23 cef rerun: $out"
+
 rm -f $XDG_DATA_HOME/$app/welcomed
 start
 wait_for '"url":"nova://page/' 30 && ok "8.22 welcome page on a new profile" || fail "8.22 welcome: $(q)"
