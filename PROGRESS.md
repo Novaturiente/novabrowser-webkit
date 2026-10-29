@@ -39,6 +39,7 @@ Tests drive the browser over IPC: `--cmd`, `--query state`, `--key <keys>`.
 - [ ] W12 headless PGO training on novahome
 - [x] W13 Dark Reader overhead, measured 2026-10-29 (`spikes/w9-baseline/ab-darkreader.sh`, Safari identity, 3 interleaved rounds, AC): off 26.7/26.8/26.8, Dark Reader 16.0/15.5/15.6 (**−42%**), inverting CSS 23.3/23.6/23.5 (**−12%**). Both fail the 3% rule (CSS invert also left text unreadable, user). WebKit's own colour filter (`-apple-color-filter`, feature `ColorFilter`, no WebKit rebuild needed): off 26.9/26.6/26.8 vs on 27.1/25.0/27.0, no measurable cost → shipped (D6). Dark Reader removed.
 - [~] W14 real-site perf vs CEF (`spikes/w14/compare.py`, results/w14.json, 2026-10-29): startup to first local page median 0.312 s vs CEF 0.298 s; 5 real sites, PSS of the process tree 1556 MB (other runs 1433, 1924) vs CEF ~940 MB. Without the adblock extension 1564 MB: the gap is WebKit's page processes, not adblock (closes W7's RSS question). Fixed: chrome views now share one web process (was 5 per window). [m] scrolling feel
+- [x] W15 overlay flash (user: URL bar "jumps/flashes" on light pages) — `spikes/w15-ui-smooth/flash.sh` records the window (wf-recorder, deleted after) and prints per-frame luma. Before (2026-10-29): white page 177 → **38 for 4 frames** (opaque `#111` palette body before the snapshot loaded) → 86; dark page 44 → **89 for 2 frames** (stale blurred white page: a hidden WebView keeps its last frame) → 35. After: 231 → 192 → 113 → 106 and 43 → 35 → 29, no dip or spike; close and which-key fade the same way. Fix: `src/anim.rs` shows overlays transparent, fills them, fades in once their page painted two rAFs (250 ms fallback) and fades out on close; palette body transparent over a GTK `WidgetPaintable` of the page (blurred, on black), card pop-in 160 ms; prompt, tooltip, menu, password list, which-key use the same path. S/F/P all pass. First open after start still drops ~2 frames (50 ms gap, likely GSK blur shader warm-up); later opens 17 ms per frame.
 
 ## Phase C — nova-core (PLAN.md §5)
 
@@ -98,7 +99,7 @@ Tests drive the browser over IPC: `--cmd`, `--query state`, `--key <keys>`.
 ## Phase 3 — Palette, completion, history
 
 - [m] 3.1 Floating palette for `o` / `O` / `:`
-- [m] 3.2 Blurred snapshot backdrop; `/` `?` thin strip
+- [m] 3.2 Blurred backdrop (live page through GTK `filter: blur() brightness()`, since W15; was a PNG snapshot); `/` `?` thin strip
 - [m] 3.3 Readline keys
 - [m] 3.4 Tab / Shift-Tab, Up/Down, Ctrl-p/n
 - [x] 3.5 Completion sources + order (U: `completion::tests`); [m] look
@@ -253,6 +254,8 @@ WebFormManager yet).
 
 Newest first. Settled — don't reopen without new evidence.
 
+- 2026-10-29 — Overlays fade (in 140 ms after their page painted, out 90 ms; off when GTK animations are off) and the palette backdrop is the live page blurred by GTK, not a snapshot: the snapshot cost a PNG + base64 round trip on the main thread and showed a stale frame (W15). Device-info requests are allowed when the mic or the camera is.
+
 - 2026-10-29 — Prompts over pages: TLS errors ask in the tab-bar prompt (like every other question) instead of a `nova://` error page. Reopen if the prompt proves too easy to answer by accident.
 - 2026-10-29 — Main-frame detection for adblock: the UI sends a `nav` page message before letting each main-frame navigation go ahead; it reaches the web process before the load (same IPC connection). The extension follows the main document through redirects.
 - 2026-10-29 — D9 (user): no DRM in the WebKit edition v1; DRM sites stay in the CEF edition.
@@ -267,6 +270,8 @@ Newest first. Settled — don't reopen without new evidence.
 ## Session log
 
 Newest first.
+
+- 2026-10-29 (IST, 18:50) — W15: overlay flash measured and fixed (anim.rs, GTK-blurred live backdrop, fades for palette/prompt/tooltip/menu/password list/which-key); `DeviceInfoPermissionRequest` follows mic or camera (was camera only). S/F/P pass. Next: user manual pass.
 
 - 2026-10-29 (IST, 12:40) — 5.6, 7.13, 7.15 done; W14 measured (startup 0.312 vs 0.298 s; PSS 1556 vs ~940 MB on 5 sites, not adblock); chrome views share one web process. Phase 9: LICENSE, .desktop, icons, -git/tag/-bin PKGBUILDs, release.sh, README install, `docs/user/` (13 guides, ported by a subagent). `--import novabrowser` built (it was claimed in 8.23 but missing). smoke.sh: fixed media bytes + 20 s waits (two timing flakes under load). CEF repo: aria2 on nova-core (A4 reaches CEF), C6 log + changelog, `nova-core` branch fast-forwarded into `main` (650078a, then e68d7b3 pin 7c1557b; not pushed). Doc statements the porting subagent could not verify (left hedged or marked [m]): history/scroll after restore, `tab-give` without reload, private-window mark, inspector window, `hardware_acceleration`/fonts new tabs only, spell-check dictionaries, `colors.contextmenu.*` on the GTK menu, HiDPI, IME, `.torrent` via aria2. Next: user manual pass; publish on go.
 

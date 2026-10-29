@@ -1,6 +1,7 @@
 //! novabrowser-webkit: the keyboard-driven browser on WebKitGTK 6.0 (GTK 4). Logic
 //! shared with the CEF edition lives in nova-core; this crate is the engine glue.
 mod adblock;
+mod anim;
 mod clipboard;
 mod commands;
 mod darkmode;

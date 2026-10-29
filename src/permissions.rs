@@ -206,6 +206,15 @@ pub fn request(view: &WebView, req: &PermissionRequest) -> bool {
         return true;
     };
     let origin = origin_of(view);
+    // device labels: allowed when the mic or the camera is (wanted() asks under camera)
+    if req.is::<webkit6::DeviceInfoPermissionRequest>()
+        && ["content.media.audio_capture", "content.media.video_capture"]
+            .iter()
+            .any(|s| decide(&origin, s) == Decision::Allow)
+    {
+        req.allow();
+        return true;
+    }
     let d = combine(&wanted.iter().map(|(s, _)| decide(&origin, s)).collect::<Vec<_>>());
     match d {
         Decision::Allow => req.allow(),

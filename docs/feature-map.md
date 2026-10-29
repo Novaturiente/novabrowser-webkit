@@ -68,7 +68,7 @@ Verdict: **same** (direct equivalent), **better** (WebKit does more),
 | Feature | CEF edition | WebKitGTK edition | Verdict |
 |---|---|---|---|
 | Floating palette for `o`, `O`, `:`; hidden prefixes (`:open -t `…) with placeholders; `/` `?` as a thin strip | `palette.html` overlay, `can_activate=1`, posted focus | GtkOverlay child: GtkEntry + GtkListView (D2) | same |
-| Blurred page behind the palette | CDP `Page.captureScreenshot` JPEG → CSS background | GTK CSS `filter: blur()` on the content while open [Guessing], else `get_snapshot` → GdkTexture | same / better |
+| Blurred page behind the palette | CDP `Page.captureScreenshot` JPEG → CSS background | `WidgetPaintable` of the page in a `GtkPicture` with GTK CSS `filter: blur() brightness()`, faded in with the palette (W15) | same / better |
 | Readline keys (Ctrl-a/e/b/f/u/k/w/y/h, Alt-b/f/d), Up/Down vs Ctrl-p/n rules | palette.html JS | key handler on the entry | same |
 | Completion sources: commands, quickmarks, bookmarks, history (FTS5 trigram, typed → visits → recency), profiles, bindings | `completion.rs`, `history.rs` | copied | same |
 | History DB (`history.sqlite`), command history, `:history` page, import | rusqlite thread, `post_task` back | same thread, `glib` invoke back | same |

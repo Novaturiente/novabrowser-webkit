@@ -47,6 +47,8 @@ pub struct State {
     root: Option<gtk::Overlay>,
     pub tabbar: Option<WebView>,
     palette: Option<WebView>,
+    /// the page, live and blurred, under the palette: a Box holding a Picture (CSS `.nova-backdrop`)
+    backdrop: Option<gtk::Box>,
     keyhint: Option<WebView>,
     tip: Option<WebView>,
     menu: Option<WebView>,
@@ -68,6 +70,8 @@ pub struct State {
     /// Private window: tabs on the ephemeral session, nothing saved.
     pub private: bool,
 }
+
+static BACKDROP_CSS: std::sync::Once = std::sync::Once::new();
 
 thread_local! {
     static WINS: RefCell<Vec<State>> = const { RefCell::new(Vec::new()) };
@@ -213,6 +217,28 @@ fn build_window(slot: usize) {
     let tip = ui("popup");
     let menu = ui("popup");
     let ask = ui("prompt");
+    let backdrop = gtk::Picture::new();
+    backdrop.add_css_class("nova-backdrop");
+    backdrop.set_content_fit(gtk::ContentFit::Fill);
+    backdrop.set_hexpand(true);
+    // on black: the blur's soft edges would show the sharp page under them
+    let backdrop_bg = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    backdrop_bg.add_css_class("nova-backdrop-bg");
+    backdrop_bg.append(&backdrop);
+    backdrop_bg.set_can_target(false);
+    backdrop_bg.set_visible(false);
+    content.add_overlay(&backdrop_bg); // added first: under the palette
+    BACKDROP_CSS.call_once(|| {
+        let css = gtk::CssProvider::new();
+        css.load_from_string(
+            ".nova-backdrop { filter: blur(10px) brightness(.45); } .nova-backdrop-bg { background: black; }",
+        );
+        gtk::style_context_add_provider_for_display(
+            &WidgetExt::display(&window),
+            &css,
+            gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+        );
+    });
     for (v, parent) in [(&palette, &content), (&keyhint, &content), (&ask, &content), (&tip, &root), (&menu, &root)] {
         v.set_visible(false);
         parent.add_overlay(v);
@@ -258,6 +284,7 @@ fn build_window(slot: usize) {
         s.root = Some(root);
         s.tabbar = Some(tabbar);
         s.palette = Some(palette);
+        s.backdrop = Some(backdrop_bg);
         s.keyhint = Some(keyhint);
         s.tip = Some(tip);
         s.menu = Some(menu);
@@ -1144,15 +1171,14 @@ pub fn set_prompt(p: Option<(String, Vec<[&'static str; 2]>)>) {
     };
     refresh();
     let Some((q, opts)) = p else {
-        return view.set_visible(false);
+        return crate::anim::conceal(&view, || {});
     };
     let w = (content.width() - 24).clamp(240, 640);
     // shortcut: line count guessed at ~9 px per character; prompt.html clamps to 3 lines
     let lines = (q.chars().count() as i32 * 9 / (w - 100) + 1).min(3);
     // body padding 10+10, card (56 px or 20 px lines + 20), gap 14, buttons 40, shadow room
     view.set_size_request(w, 20 + (20 * lines + 22).max(56) + 14 + 40 + 6);
-    view.set_visible(true);
-    web::eval_page(&view, &format!("nova.ask({})", json!({"q": q, "opts": opts})));
+    crate::anim::reveal(&view, &format!("nova.ask({})", json!({"q": q, "opts": opts})), &[]);
 }
 
 /// Show a status bar message for `messages.timeout` ms (`info`, `warning`, `error`).
@@ -1198,40 +1224,43 @@ fn palette_js(js: &str) {
 }
 
 /// `cmd-set-text`: open the floating palette with `text`. Search (`/`, `?`) gets a
-/// thin strip so the matches stay visible; everything else floats over a blurred
-/// snapshot of the page.
+/// thin strip so the matches stay visible; everything else floats over the page,
+/// blurred live by GTK (no screenshot: that cost a PNG round trip and showed stale).
 pub fn open_cmdline(text: &str) {
     modes::enter(Mode::Command);
     let compact = text.starts_with('/') || text.starts_with('?');
-    let Some((view, page)) = S.with_borrow_mut(|s| {
+    let Some((view, backdrop, page)) = S.with_borrow_mut(|s| {
         s.compact = compact;
-        let v = s.palette.clone()?;
-        Some((v, s.tabs.get(s.active).and_then(|t| t.view.clone())))
+        Some((
+            s.palette.clone()?,
+            s.backdrop.clone()?,
+            s.tabs.get(s.active).and_then(|t| t.view.clone()),
+        ))
     }) else {
         return;
     };
+    let also = match page.filter(|_| !compact) {
+        Some(page) => {
+            set_backdrop(&backdrop, Some(&page));
+            if view.is_visible() {
+                backdrop.set_visible(true);
+            }
+            vec![backdrop.upcast()]
+        }
+        None => {
+            crate::anim::conceal(&backdrop, || {});
+            vec![]
+        }
+    };
     place_palette();
-    view.set_visible(true);
     view.grab_focus();
-    palette_js(&format!(
-        "nova.backdrop(null); nova.cmdline({}, {compact})",
-        js_str(text)
-    ));
-    if let (false, Some(page)) = (compact, page) {
-        page.snapshot(
-            webkit6::SnapshotRegion::Visible,
-            webkit6::SnapshotOptions::NONE,
-            None::<&gtk::gio::Cancellable>,
-            |r| {
-                let Ok(t) = r else { return };
-                if modes::mode() != Mode::Command {
-                    return;
-                }
-                let png = t.save_to_png_bytes();
-                let b64 = glib::base64_encode(&png);
-                palette_js(&format!("nova.backdrop(\"data:image/png;base64,{b64}\")"));
-            },
-        );
+    crate::anim::reveal(&view, &format!("nova.cmdline({}, {compact})", js_str(text)), &also);
+}
+
+/// Point the palette's backdrop at `page` (None: let go of it).
+fn set_backdrop(b: &gtk::Box, page: Option<&WebView>) {
+    if let Some(p) = b.first_child().and_downcast::<gtk::Picture>() {
+        p.set_paintable(page.map(|v| gtk::WidgetPaintable::new(Some(v))).as_ref());
     }
 }
 
@@ -1239,10 +1268,12 @@ pub fn open_cmdline(text: &str) {
 pub fn close_cmdline() {
     modes::enter(Mode::Normal);
     crate::completion::reset();
-    if let Some(v) = S.with_borrow(|s| s.palette.clone()) {
-        v.set_visible(false);
+    if let Some((v, b)) = S.with_borrow(|s| Some((s.palette.clone()?, s.backdrop.clone()?))) {
+        crate::anim::conceal(&v, || {});
+        let b2 = b.clone();
+        // let go of the page: a live paintable redraws with it
+        crate::anim::conceal(&b, move || set_backdrop(&b2, None));
     }
-    palette_js("nova.backdrop(null)");
     focus_active();
     refresh();
 }
@@ -1306,8 +1337,7 @@ fn popup_at(view: &WebView, x: i32, y: i32, w: i32, h: i32, js: &str) {
     view.set_margin_start(x);
     view.set_margin_top(y);
     view.set_size_request(w, h);
-    view.set_visible(true);
-    web::eval_page(view, js);
+    crate::anim::reveal(view, js, &[]);
 }
 
 /// Tab bar's origin in root (window content) coordinates.
@@ -1335,7 +1365,7 @@ pub fn tab_tip(arg: &str) {
         return;
     };
     let Some((i, left, bottom, right)) = tab_rect(arg) else {
-        return view.set_visible(false);
+        return crate::anim::conceal(&view, || {});
     };
     let Some((title, url)) =
         S.with_borrow(|s| s.tabs.get(i).map(|t| (t.title.clone(), t.url.clone())))
@@ -1376,7 +1406,7 @@ pub fn tab_menu(arg: &str) {
         return;
     };
     if let Some(t) = S.with_borrow(|s| s.tip.clone()) {
-        t.set_visible(false);
+        crate::anim::conceal(&t, || {});
     }
     let (ox, oy) = origin_of(S.with_borrow(|s| s.tabbar.clone()));
     let items: Vec<_> = MENU.iter().map(|(a, l, k)| [a, l, k]).collect();
@@ -1411,14 +1441,14 @@ pub fn suggest(field: (i32, i32, i32, i32), data: &Value) {
 
 pub fn suggest_hide() {
     if let Some(v) = S.with_borrow(|s| s.tip.clone()) {
-        v.set_visible(false);
-        web::eval_page(&v, "nova.suggest(null)");
+        let v2 = v.clone();
+        crate::anim::conceal(&v, move || web::eval_page(&v2, "nova.suggest(null)"));
     }
 }
 
 pub fn close_popup() {
     if let Some(v) = S.with_borrow(|s| s.menu.clone()) {
-        v.set_visible(false);
+        crate::anim::conceal(&v, || {});
     }
     focus_active();
 }
@@ -1459,7 +1489,7 @@ fn update_keyhint() {
     });
     if rows.is_empty() {
         if let Some(v) = S.with_borrow(|s| s.keyhint.clone()) {
-            v.set_visible(false);
+            crate::anim::conceal(&v, || {});
         }
     } else {
         glib::timeout_add_local_once(Duration::from_millis(350), move || {
@@ -1483,10 +1513,10 @@ fn show_keyhint(generation: u64) {
     let h = (rows.len() as i32 * row_h + 18).min(stack.height() - 24).max(30);
     let w = 380.min(stack.width() - 24).max(100);
     view.set_size_request(w, h);
-    view.set_visible(true);
-    web::eval_page(
+    crate::anim::reveal(
         &view,
         &format!("nova.keyhint({}, {})", js_str(&prefix), json!(rows)),
+        &[],
     );
 }
 
