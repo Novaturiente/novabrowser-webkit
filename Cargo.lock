@@ -940,7 +940,7 @@ dependencies = [
 
 [[package]]
 name = "novabrowser-webkit"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "adblock",
  "gtk4",
@@ -951,7 +951,7 @@ dependencies = [
 
 [[package]]
 name = "novabrowser-webkit-ext"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "adblock",
  "nova-core",

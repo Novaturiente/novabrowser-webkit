@@ -6,7 +6,7 @@ integration, adblock, userscripts), on **WebKitGTK 6.0 + GTK 4** instead of
 CEF/Chromium.
 
 Status: **feature-complete against novabrowser 0.1.8, in manual testing**
-(`docs/manual-test.md`). Latest release: 0.1.7.
+(`docs/manual-test.md`). Latest release: 0.1.8.
 Speedometer 3.1 with our PGO WebKitGTK build (`webkitgtk-6.0-nova`): 27.25 vs
 26.3 for the CEF edition (2026-10-28). Full feature checklist: `PROGRESS.md`.
 
