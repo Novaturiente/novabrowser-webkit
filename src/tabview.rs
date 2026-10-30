@@ -46,6 +46,26 @@ pub fn config_changed() {
 }
 
 pub fn connect(view: &WebView) {
+    // Capture side buttons before WebKit sends them to the page.
+    let mouse = gtk::EventControllerLegacy::new();
+    mouse.set_propagation_phase(gtk::PropagationPhase::Capture);
+    mouse.connect_event(|controller, event| {
+        let Some(button) = event.downcast_ref::<gtk::gdk::ButtonEvent>() else {
+            return glib::Propagation::Proceed;
+        };
+        let direction = match button.button() {
+            8 => -1,
+            9 => 1,
+            _ => return glib::Propagation::Proceed,
+        };
+        if event.event_type() == gtk::gdk::EventType::ButtonPress {
+            if let Some(view) = controller.widget().and_downcast::<WebView>() {
+                window::in_owner(&view, || window::go(&view, direction));
+            }
+        }
+        glib::Propagation::Stop
+    });
+    view.add_controller(mouse);
     view.connect_uri_notify(|v| {
         if let Some(u) = v.uri() {
             window::set_url(v, u.to_string());
