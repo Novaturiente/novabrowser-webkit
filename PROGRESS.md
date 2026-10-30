@@ -271,6 +271,8 @@ Newest first. Settled — don't reopen without new evidence.
 
 Newest first.
 
+- 2026-10-30 (IST, 13:35) — Unreachable http(s) pages get a Chrome-style "This site can't be reached" page (`window::load_error`, shares `notice_page` with the crashed page): Chrome wording + `ERR_*` code from the libsoup/GIO message, tab title = host, `r` retries the real URL. Policy errors (blocked ports, downloads) keep WebKit's text. Checked: refused (127.0.0.1:59999), unresolved (nope.invalid) by screenshot; `r` after starting a server loaded it; unit test `load_error_wording`. Crashed page not re-checked live after the refactor.
+
 - 2026-10-30 (IST, 13:15) — Released 0.1.6: nova-core `8314d79` pushed (tab-pin default `Ctrl-Shift-p`) and pinned; `cargo test --workspace` pass; tag `v0.1.6`, `release.sh` (clean makepkg build + check, GitHub release asset); `-bin` PKGBUILD built from the uploaded asset; AUR `novabrowser-webkit` `431defa`, `novabrowser-webkit-bin` `425d372` pushed (`git ls-remote` matches). The CEF edition still pins an older nova-core (default pin key there is still `Ctrl-p`).
 
 - 2026-10-30 (IST, 12:55) — Toast pill cut short text ("Tab pinn…"): WebKit sized the flex pill from the icon's content width, not its `flex-basis: 22px`. Fix: `width: 22px` on `#i` in `ui/toast.html`. Checked by screenshot: "Tab pinned." / "Tab unpinned." whole, a message wider than the window still ends in ….

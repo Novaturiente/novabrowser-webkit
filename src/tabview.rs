@@ -87,7 +87,8 @@ pub fn connect(view: &WebView) {
             let text = format!("{host}: https failed ({}). HTTPS-only upgraded it; :https-toggle (<Space>th) allows http here", err.message());
             window::in_owner(v, || window::message("warning", &text));
         }
-        false
+        // policy errors (downloads, blocked navigations) keep WebKit's handling
+        !cancelled && err.kind::<webkit6::PolicyError>().is_none() && window::load_error(v, uri, err)
     });
     view.connect_load_failed_with_tls_errors(|v, uri, cert, errors| {
         crate::permissions::tls_error(v, uri, cert, errors);

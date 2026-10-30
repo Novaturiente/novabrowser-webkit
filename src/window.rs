@@ -795,18 +795,67 @@ pub fn crashed(view: &WebView, why: &str) {
         t.crashed = Some(t.url.clone());
         t.loading = false;
     });
+    notice_page(view, &url, "crashed", &format!("This tab crashed ({why})"), &[], &[]);
+}
+
+/// A local page in place of `url`: icon, heading, `lines` as text, `mono` lines (URL,
+/// error code) muted, then the `r` hint. Text goes in as JSON, never as HTML.
+fn notice_page(view: &WebView, url: &str, title: &str, heading: &str, lines: &[&str], mono: &[&str]) {
     let html = theme::themed_page(format!(
-        "<!doctype html><meta charset=utf-8><title>crashed</title>\
+        "<!doctype html><meta charset=utf-8>\
          <style>.c{{max-width:34em;margin:18vh auto 0;text-align:center}}\
          .i{{width:3.2em;height:3.2em;margin:0 auto 1em;border-radius:50%;display:grid;place-items:center;\
          font-size:1.6em;font-weight:700;color:var(--red);background:color-mix(in srgb,var(--red) 18%,transparent)}}\
-         #u{{font:.9em ui-monospace,monospace;color:var(--muted);word-break:break-all}}</style>\
-         <div class=c><div class=i>!</div><h2 style='text-transform:none;letter-spacing:0;font-size:1.3em;color:var(--fg)'>\
-         This tab crashed ({why})</h2><p id=u></p><p>Press <kbd>r</kbd> to reload.</p></div>\
-         <script>document.getElementById('u').textContent = {};</script>",
-        js_str(&url)
+         .m{{font:.9em ui-monospace,monospace;color:var(--muted);word-break:break-all}}</style>\
+         <div class=c><div class=i>!</div><h2 id=h style='text-transform:none;letter-spacing:0;font-size:1.3em;color:var(--fg)'>\
+         </h2><div id=b></div><p>Press <kbd>r</kbd> to reload.</p></div>\
+         <script>document.title = {};\
+         document.getElementById('h').textContent = {};\
+         const b = document.getElementById('b');\
+         for (const [t, m] of {}) b.append(Object.assign(document.createElement('p'), {{textContent: t, className: m ? 'm' : ''}}));</script>",
+        js_str(title),
+        js_str(heading),
+        json!(lines.iter().map(|l| (l, false)).chain(std::iter::once((&url, true))).chain(mono.iter().map(|l| (l, true))).collect::<Vec<_>>()),
     ));
-    view.load_alternate_html(&html, &url, None);
+    view.load_alternate_html(&html, url, None);
+}
+
+/// `load-failed` on a web page: a Chrome-style "can't be reached" page instead of
+/// WebKit's one-line error. Returns whether it showed one.
+pub fn load_error(view: &WebView, uri: &str, err: &glib::Error) -> bool {
+    if !(uri.starts_with("http://") || uri.starts_with("https://")) {
+        return false;
+    }
+    let host = crate::commands::host(uri);
+    let (what, code) = load_error_text(host, err.message());
+    notice_page(
+        view,
+        uri,
+        host,
+        "This site can't be reached",
+        &[&what, "Check the address, your connection, and that the server is running."],
+        &[&format!("{code} · {}", err.message())],
+    );
+    true
+}
+
+/// Chrome's wording for a network error message (libsoup / GIO text): (what happened, code).
+fn load_error_text(host: &str, msg: &str) -> (String, &'static str) {
+    let m = msg.to_lowercase();
+    let has = |keys: &[&str]| keys.iter().any(|k| m.contains(k));
+    if has(&["connection refused"]) {
+        (format!("{host} refused to connect."), "ERR_CONNECTION_REFUSED")
+    } else if has(&["resolv", "name or service not known", "no address associated"]) {
+        (format!("{host}'s server IP address could not be found."), "ERR_NAME_NOT_RESOLVED")
+    } else if has(&["timed out"]) {
+        (format!("{host} took too long to respond."), "ERR_CONNECTION_TIMED_OUT")
+    } else if has(&["network is unreachable", "no route to host", "host is unreachable"]) {
+        (format!("{host} is unreachable from this network."), "ERR_ADDRESS_UNREACHABLE")
+    } else if has(&["connection reset", "connection closed", "unexpectedly closed"]) {
+        ("The connection was reset.".into(), "ERR_CONNECTION_RESET")
+    } else {
+        (format!("{host} can't be reached."), "ERR_FAILED")
+    }
 }
 
 /// `r` on a crashed tab: load its URL again. Returns whether it was crashed.
@@ -1945,7 +1994,18 @@ fn ui_message(text: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::move_target;
+    use super::{load_error_text, move_target};
+
+    #[test]
+    fn load_error_wording() {
+        let code = |m: &str| load_error_text("h", m).1;
+        assert_eq!(code("Could not connect to 100.88.215.101: Connection refused"), "ERR_CONNECTION_REFUSED");
+        assert_eq!(code("Error resolving “nope.invalid”: Name or service not known"), "ERR_NAME_NOT_RESOLVED");
+        assert_eq!(code("Socket I/O timed out"), "ERR_CONNECTION_TIMED_OUT");
+        assert_eq!(code("Could not connect to h: No route to host"), "ERR_ADDRESS_UNREACHABLE");
+        assert_eq!(code("Connection terminated unexpectedly"), "ERR_FAILED");
+        assert_eq!(load_error_text("h", "Connection refused").0, "h refused to connect.");
+    }
 
     #[test]
     fn move_keeps_pinned_group() {
