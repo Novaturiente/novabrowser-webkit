@@ -1,6 +1,6 @@
 [package]
 name = "novabrowser-webkit"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
 license = "GPL-3.0-or-later"
 description = "Keyboard-driven browser on WebKitGTK, configured in TypeScript"
@@ -15,7 +15,7 @@ adblock = { version = "0.13.3", default-features = false, features = ["embedded-
 gtk = { package = "gtk4", version = "0.11", features = ["v4_18"] }
 webkit6 = { version = "0.6", features = ["v2_52"] }
 # Shared with novabrowser (CEF); pinned rev, bump after pushing nova-core changes.
-nova-core = { git = "https://github.com/Novaturiente/nova-core", rev = "8314d79a751e07bfdc90f16eda4205419d1b38c0" }
+nova-core = { git = "https://github.com/Novaturiente/nova-core", rev = "b91dec7ccb6735c1abd217889e7a7c7373782eb8" }
 serde_json = "1.0.152"
 
 [profile.release]

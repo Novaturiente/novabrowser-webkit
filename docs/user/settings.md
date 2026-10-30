@@ -553,7 +553,7 @@ Padding of the mode/message badge in px.
 Background shown before a page paints. New tabs.
 
 - Type: string
-- Default: `"\"white\""`
+- Default: `"\"#333333\""`
 
 ### `colors.webpage.preferred_color_scheme`
 
