@@ -17,7 +17,7 @@ Tests drive the browser over IPC: `--cmd`, `--query state`, `--key <keys>`.
 ## Now
 
 - **Phase:** 1–8 and 10 built and checked by S/F/P where IPC can reach; user's manual pass (`docs/manual-test.md`) next.
-- **Next action:** user runs `docs/manual-test.md`. Released 0.1.0 (9.2). D7 duty now live: rebuild `webkitgtk-6.0-nova-bin` within 3 days of each WebKitGTK release/advisory. C5 (aria2) and C6 done in the CEF repo (`main` 650078a, not pushed).
+- **Next action:** user runs `docs/manual-test.md`. Released 0.1.7 (2026-10-30). D7 duty now live: rebuild `webkitgtk-6.0-nova-bin` within 3 days of each WebKitGTK release/advisory. C5 (aria2) and C6 done in the CEF repo (`main` 650078a, not pushed).
 - **Blockers:** none.
 
 ---
@@ -271,7 +271,7 @@ Newest first. Settled — don't reopen without new evidence.
 
 Newest first.
 
-- 2026-10-30 (IST, 14:45) — Prepare 0.1.7: dark grey (`#333333`) is now the default page background in nova-core `b91dec7` (pushed; 91 tests passed). Both manifests pin it; settings reference updated. Release workspace build and tests passed. Includes the committed unreachable-page UI. Package publication pending.
+- 2026-10-30 (IST, 14:45) — Prepare 0.1.7: dark grey (`#333333`) is now the default page background in nova-core `b91dec7` (pushed; 91 tests passed). Both manifests pin it; settings reference updated. Release workspace build and tests passed. Includes the committed unreachable-page UI. Published at 14:50 IST: release.sh clean source build and package tests passed; GitHub v0.1.7 asset uploaded; -bin package built from that asset. Both AUR updates pushed and remote hashes verified: novabrowser-webkit beef8cc, novabrowser-webkit-bin b7c7ea0. System installation not changed.
 
 - 2026-10-30 (IST, 13:35) — Unreachable http(s) pages get a Chrome-style "This site can't be reached" page (`window::load_error`, shares `notice_page` with the crashed page): Chrome wording + `ERR_*` code from the libsoup/GIO message, tab title = host, `r` retries the real URL. Policy errors (blocked ports, downloads) keep WebKit's text. Checked: refused (127.0.0.1:59999), unresolved (nope.invalid) by screenshot; `r` after starting a server loaded it; unit test `load_error_wording`. Crashed page not re-checked live after the refactor.
 
