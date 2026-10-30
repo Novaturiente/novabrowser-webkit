@@ -924,7 +924,7 @@ checksum = "610a5acd306ec67f907abe5567859a3c693fb9886eb1f012ab8f2a47bef3db51"
 [[package]]
 name = "nova-core"
 version = "0.1.0"
-source = "git+https://github.com/Novaturiente/nova-core?rev=d3866c75334059cf1052ab56713f0274c9009664#d3866c75334059cf1052ab56713f0274c9009664"
+source = "git+https://github.com/Novaturiente/nova-core?rev=8314d79a751e07bfdc90f16eda4205419d1b38c0#8314d79a751e07bfdc90f16eda4205419d1b38c0"
 dependencies = [
  "adblock",
  "oxc_allocator",
@@ -940,7 +940,7 @@ dependencies = [
 
 [[package]]
 name = "novabrowser-webkit"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "adblock",
  "gtk4",
@@ -951,7 +951,7 @@ dependencies = [
 
 [[package]]
 name = "novabrowser-webkit-ext"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "adblock",
  "nova-core",
