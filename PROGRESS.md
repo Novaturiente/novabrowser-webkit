@@ -271,6 +271,8 @@ Newest first. Settled — don't reopen without new evidence.
 
 Newest first.
 
+- 2026-10-30 (IST, 12:55) — Toast pill cut short text ("Tab pinn…"): WebKit sized the flex pill from the icon's content width, not its `flex-basis: 22px`. Fix: `width: 22px` on `#i` in `ui/toast.html`. Checked by screenshot: "Tab pinned." / "Tab unpinned." whole, a message wider than the window still ends in ….
+
 - 2026-10-30 (IST, 12:40) — `tab-pin` shows "Tab pinned." / "Tab unpinned." (checked via `--cmd tab-pin` + `--query state`, and real `wtype` Ctrl-Shift-p). Default pin key `Ctrl-p` → `Ctrl-Shift-p` in nova-core (committed locally, not pushed; Cargo.toml still pins d3866c7 until the push + rev bump). Tab menu label and docs updated.
 
 - 2026-10-29 (IST, 18:50) — W15: overlay flash measured and fixed (anim.rs, GTK-blurred live backdrop, fades for palette/prompt/tooltip/menu/password list/which-key); `DeviceInfoPermissionRequest` follows mic or camera (was camera only). S/F/P pass. Next: user manual pass.

@@ -11,7 +11,8 @@
        background: var(--colors-messages-info-bg, #333); color: var(--colors-messages-info-fg, #eee);
        border: 1px solid var(--colors-completion-category-border-top, #444); box-shadow: 0 2px 5px rgba(0, 0, 0, .35); }
   #t span { overflow: hidden; text-overflow: ellipsis; }
-  #i { flex: 0 0 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-weight: bold;
+  /* width, not just flex-basis: WebKit sizes the pill from the icon's content width (the "i"), cutting the text */
+  #i { flex: 0 0 22px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-weight: bold;
        background: color-mix(in srgb, currentColor 18%, transparent); }
   #t.warning { background: var(--colors-messages-warning-bg); color: var(--colors-messages-warning-fg); }
   #t.error { background: var(--colors-messages-error-bg); color: var(--colors-messages-error-fg); }
