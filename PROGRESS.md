@@ -17,7 +17,7 @@ Tests drive the browser over IPC: `--cmd`, `--query state`, `--key <keys>`.
 ## Now
 
 - **Phase:** 1–8 and 10 built and checked by S/F/P where IPC can reach; user's manual pass (`docs/manual-test.md`) next.
-- **Next action:** user runs `docs/manual-test.md`. Released 0.1.7 (2026-10-30). D7 duty now live: rebuild `webkitgtk-6.0-nova-bin` within 3 days of each WebKitGTK release/advisory. C5 (aria2) and C6 done in the CEF repo (`main` 650078a, not pushed).
+- **Next action:** user runs `docs/manual-test.md`. Released 0.1.8 (2026-10-30). D7 duty now live: rebuild `webkitgtk-6.0-nova-bin` within 3 days of each WebKitGTK release/advisory. C5 (aria2) and C6 done in the CEF repo (`main` 650078a, not pushed).
 - **Blockers:** none.
 
 ---
@@ -270,6 +270,8 @@ Newest first. Settled — don't reopen without new evidence.
 ## Session log
 
 Newest first.
+
+- 2026-10-30 (IST, 19:02) — Released 0.1.8 with mouse Back/Forward support. Workspace tests passed (12 browser, 2 extension); release.sh clean source package build and checks passed; GitHub v0.1.8 asset published. The -bin package built from the uploaded asset. Both AUR updates pushed and remote hashes verified: novabrowser-webkit 8425f5a, novabrowser-webkit-bin 0bfc940. System installation unchanged.
 
 - 2026-10-30 (IST, 15:59) — Mouse side buttons now navigate history: tab WebViews capture GTK buttons 8/9, navigate on press, consume release, and leave other buttons untouched. Release build and 12 tests passed. Independent verification with ydotool and an isolated profile traversed three local pages backward and forward exactly one entry per click. Ordinary clicks on empty content did not navigate; link/context-menu behavior was not checked. Test-focus incident: one initial back click reached WhatsApp, effect unknown; subsequent events were guarded by active-window checks. Not released.
 
