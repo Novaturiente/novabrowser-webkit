@@ -271,6 +271,8 @@ Newest first. Settled — don't reopen without new evidence.
 
 Newest first.
 
+- 2026-10-30 (IST, 13:15) — Released 0.1.6: nova-core `8314d79` pushed (tab-pin default `Ctrl-Shift-p`) and pinned; `cargo test --workspace` pass; tag `v0.1.6`, `release.sh` (clean makepkg build + check, GitHub release asset); `-bin` PKGBUILD built from the uploaded asset; AUR `novabrowser-webkit` `431defa`, `novabrowser-webkit-bin` `425d372` pushed (`git ls-remote` matches). The CEF edition still pins an older nova-core (default pin key there is still `Ctrl-p`).
+
 - 2026-10-30 (IST, 12:55) — Toast pill cut short text ("Tab pinn…"): WebKit sized the flex pill from the icon's content width, not its `flex-basis: 22px`. Fix: `width: 22px` on `#i` in `ui/toast.html`. Checked by screenshot: "Tab pinned." / "Tab unpinned." whole, a message wider than the window still ends in ….
 
 - 2026-10-30 (IST, 12:40) — `tab-pin` shows "Tab pinned." / "Tab unpinned." (checked via `--cmd tab-pin` + `--query state`, and real `wtype` Ctrl-Shift-p). Default pin key `Ctrl-p` → `Ctrl-Shift-p` in nova-core (committed locally, not pushed; Cargo.toml still pins d3866c7 until the push + rev bump). Tab menu label and docs updated.
