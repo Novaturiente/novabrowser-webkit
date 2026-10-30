@@ -271,6 +271,8 @@ Newest first. Settled — don't reopen without new evidence.
 
 Newest first.
 
+- 2026-10-30 (IST, 12:40) — `tab-pin` shows "Tab pinned." / "Tab unpinned." (checked via `--cmd tab-pin` + `--query state`, and real `wtype` Ctrl-Shift-p). Default pin key `Ctrl-p` → `Ctrl-Shift-p` in nova-core (committed locally, not pushed; Cargo.toml still pins d3866c7 until the push + rev bump). Tab menu label and docs updated.
+
 - 2026-10-29 (IST, 18:50) — W15: overlay flash measured and fixed (anim.rs, GTK-blurred live backdrop, fades for palette/prompt/tooltip/menu/password list/which-key); `DeviceInfoPermissionRequest` follows mic or camera (was camera only). S/F/P pass. Next: user manual pass.
 
 - 2026-10-29 (IST, 12:40) — 5.6, 7.13, 7.15 done; W14 measured (startup 0.312 vs 0.298 s; PSS 1556 vs ~940 MB on 5 sites, not adblock); chrome views share one web process. Phase 9: LICENSE, .desktop, icons, -git/tag/-bin PKGBUILDs, release.sh, README install, `docs/user/` (13 guides, ported by a subagent). `--import novabrowser` built (it was claimed in 8.23 but missing). smoke.sh: fixed media bytes + 20 s waits (two timing flakes under load). CEF repo: aria2 on nova-core (A4 reaches CEF), C6 log + changelog, `nova-core` branch fast-forwarded into `main` (650078a, then e68d7b3 pin 7c1557b; not pushed). Doc statements the porting subagent could not verify (left hedged or marked [m]): history/scroll after restore, `tab-give` without reload, private-window mark, inspector window, `hardware_acceleration`/fonts new tabs only, spell-check dictionaries, `colors.contextmenu.*` on the GTK menu, HiDPI, IME, `.torrent` via aria2. Next: user manual pass; publish on go.

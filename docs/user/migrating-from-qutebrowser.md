@@ -89,7 +89,7 @@ d u gg G / n N yy pp go gO gi m b B M : ;y`). Notable differences:
 | `Sb`, `Sh`, `Ss`, `Sq` open qute:// pages | `Sb` bookmarks, `Sh` history, `Ss` settings, `Sd` downloads |
 | `sf`, `ss`, `sl` (`:set` shortcuts) | `:set`, `Ss` |
 | `ad`, `cd` download bar keys | `:downloads` (`Sd`) |
-| `Ctrl-p` (print) | pin tab (no printing yet) |
+| `Ctrl-p` (print) | nothing (no printing yet); `Ctrl-Shift-p` pins the tab |
 | `tsh`, `tCH`, etc. (per-site toggles) | `<Space>td` dark mode, `<Space>th` HTTPS-only |
 
 Your own `config.bind` lines keep working after the syntax change. `F1`

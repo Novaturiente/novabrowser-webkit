@@ -1003,15 +1003,16 @@ pub fn close_count(count: u32, force: bool) {
 
 /// `tab-pin [index]`: toggle; pinned tabs move to the end of the pinned group.
 pub fn pin(n: Option<usize>) {
-    S.with_borrow_mut(|s| {
+    let pinned = S.with_borrow_mut(|s| {
         let n = n.unwrap_or(s.active);
         if n >= s.tabs.len() {
-            return;
+            return None;
         }
         let was_active = n == s.active;
         let active_id = vid(&s.tabs[s.active].view);
         let mut tab = s.tabs.remove(n);
         tab.pinned = !tab.pinned;
+        let pinned = tab.pinned;
         let to = s.tabs.iter().take_while(|t| t.pinned).count();
         s.tabs.insert(to, tab);
         s.active = if was_active {
@@ -1022,8 +1023,12 @@ pub fn pin(n: Option<usize>) {
                 .position(|t| active_id.is_some() && vid(&t.view) == active_id)
                 .unwrap_or(s.active)
         };
+        Some(pinned)
     });
     refresh();
+    if let Some(p) = pinned {
+        message("info", if p { "Tab pinned." } else { "Tab unpinned." });
+    }
 }
 
 /// `tab-give` / `gD`: move tab `n` with its live view into a new window (no reload).
@@ -1537,7 +1542,7 @@ const MENU: &[(&str, &str, &str)] = &[
     ("yank", "Copy URL", "yy"),
     ("mute", "Mute / unmute", "Alt-m"),
     ("bookmark", "Bookmark", "M"),
-    ("pin", "Pin / unpin", "Ctrl-p"),
+    ("pin", "Pin / unpin", "Ctrl-Shift-p"),
     ("give", "Move to new window", "gD"),
     ("sleep", "Hibernate now", ""),
     ("keep", "Keep awake on / off", ""),

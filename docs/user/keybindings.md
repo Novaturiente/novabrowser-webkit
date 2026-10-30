@@ -28,7 +28,7 @@ accident; keys with modifiers (like `Ctrl-c`) and special keys go to the page.
 
 Type a number before a key to repeat it or give it an argument: `5j` scrolls
 five steps, `3J` goes three tabs right, `50G` jumps to 50% of the page, `2d`…
-does what you'd expect, `150=` sets zoom to 150%, `3<Ctrl-p>` pins tab 3.
+does what you'd expect, `150=` sets zoom to 150%, `3<Ctrl-Shift-p>` pins tab 3.
 
 ## Default bindings
 
@@ -147,7 +147,7 @@ the other browser's typed counts along.
 | `Ss` | Settings page | `settings` |
 | `Sd` | Downloads page | `downloads` |
 | `Sh` | History page | `history` |
-| `<Ctrl-p>` | Pin / unpin the tab | `tab-pin` |
+| `<Ctrl-Shift-p>` | Pin / unpin the tab | `tab-pin` |
 | `gD` | Move the tab to a new window | `tab-give` |
 
 ### Zoom

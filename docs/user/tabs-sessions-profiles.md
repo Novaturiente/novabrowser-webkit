@@ -18,7 +18,7 @@ download status. A thin line under the tabs shows loading progress.
 
 ### Pinned tabs
 
-`Ctrl-p` (`:tab-pin`) pins a tab: it moves to the left, shows a short title
+`Ctrl-Shift-p` (`:tab-pin`) pins a tab: it moves to the left, shows a short title
 (`tabs.title.format_pinned`) until you focus it, and `d`, `co` and middle-click won't close it.
 `:tab-close --force` does. Pins are saved with the session.
 
