@@ -1,0 +1,12 @@
+t=0s 114994:227MB/__x64_sys_poll.cold 115014:382MB/__x64_sys_poll.cold 115020:206MB/__x64_sys_poll.cold
+t=15s 114994:226MB/__x64_sys_poll.cold 115014:312MB/__x64_sys_poll.cold 115020:207MB/__x64_sys_poll.cold
+t=30s 114994:226MB/__x64_sys_poll.cold 115014:356MB/__x64_sys_poll.cold 115020:206MB/__x64_sys_poll.cold
+t=45s 114994:226MB/__x64_sys_poll.cold 115014:354MB/__x64_sys_poll.cold 115020:206MB/__x64_sys_poll.cold
+t=60s 114994:226MB/__x64_sys_poll.cold 115014:354MB/__x64_sys_poll.cold 115020:206MB/__x64_sys_poll.cold
+t=75s 114994:226MB/__x64_sys_poll.cold 115014:354MB/__x64_sys_poll.cold 115020:206MB/__x64_sys_poll.cold
+t=90s 114994:226MB/__x64_sys_poll.cold 115014:360MB/__x64_sys_poll.cold 115020:206MB/__x64_sys_poll.cold
+t=105s 114994:226MB/__x64_sys_poll.cold 115014:353MB/__x64_sys_poll.cold 115020:207MB/__x64_sys_poll.cold
+t=120s 114994:226MB/__x64_sys_poll.cold 115014:354MB/__x64_sys_poll.cold 115020:206MB/__x64_sys_poll.cold
+t=135s 114994:226MB/__x64_sys_poll.cold 115014:353MB/__x64_sys_poll.cold 115020:206MB/__x64_sys_poll.cold
+t=150s 114994:226MB/__x64_sys_poll.cold 115014:354MB/__x64_sys_poll.cold 115020:206MB/__x64_sys_poll.cold
+browser alive: yes

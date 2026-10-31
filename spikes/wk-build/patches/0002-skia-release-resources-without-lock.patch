@@ -1,0 +1,41 @@
+Fix a web process hang: SkiaGLContext::releaseUnusedResources() held m_lock while calling
+GrDirectContext::freeGpuResources(). That flushes pending work; fulfilling a promise image
+(SkiaUtilities::createPromiseImageIfNeeded -> PromiseImageContext::promiseImageTexture) calls
+PlatformDisplay::skiaGLContext(), which takes the same non-recursive m_lock on the same thread.
+The compositing thread then waits on itself forever and the main thread waits forever in
+ThreadedCompositor::releaseMemory -> WorkQueue::dispatchSync (critical memory pressure).
+Still present in WebKit main as of 2026-10-31.
+
+--- a/Source/WebCore/platform/graphics/skia/PlatformDisplaySkia.cpp
++++ b/Source/WebCore/platform/graphics/skia/PlatformDisplaySkia.cpp
+@@ -313,16 +313,25 @@
+     void releaseUnusedResources(WTF::Critical critical)
+     {
+-        Locker locker { m_lock };
+-        if (!m_skiaGLContext)
++        // Don't hold m_lock while Skia runs: freeGpuResources() flushes pending work, and fulfilling a
++        // promise image calls PlatformDisplay::skiaGLContext(), which takes m_lock again on this thread.
++        // Both members are only written by the constructor and the destructor, so the copies stay valid.
++        GLContext* glContext;
++        GrDirectContext* grContext;
++        {
++            Locker locker { m_lock };
++            glContext = m_skiaGLContext.get();
++            grContext = m_skiaGrContext.get();
++        }
++        if (!glContext)
+             return;
+ 
+-        GLContext::ScopedGLContextCurrent scopedCurrent(*m_skiaGLContext);
++        GLContext::ScopedGLContextCurrent scopedCurrent(*glContext);
+         switch (critical) {
+         case Critical::No:
+-            m_skiaGrContext->purgeUnlockedResources(GrPurgeResourceOptions::kScratchResourcesOnly);
++            grContext->purgeUnlockedResources(GrPurgeResourceOptions::kScratchResourcesOnly);
+             break;
+         case Critical::Yes:
+-            m_skiaGrContext->freeGpuResources();
++            grContext->freeGpuResources();
+             break;
+         }
+     }

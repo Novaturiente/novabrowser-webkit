@@ -1,0 +1,14 @@
+t=0s 67362:417MB/0
+t=15s 67362:348MB/__x64_sys_poll.cold
+t=30s 67362:347MB/__x64_sys_poll.cold
+t=45s 67362:349MB/__x64_sys_poll.cold
+t=60s 67362:356MB/__x64_sys_poll.cold
+t=75s 67362:349MB/__x64_sys_poll.cold
+t=90s 67362:349MB/__x64_sys_poll.cold
+t=105s 67362:349MB/0
+t=120s 67362:349MB/0
+t=135s 67362:349MB/__x64_sys_poll.cold
+t=150s 67362:350MB/__x64_sys_poll.cold
+t=165s 67362:353MB/__x64_sys_poll.cold
+t=180s 67362:354MB/__x64_sys_poll.cold
+browser alive: yes

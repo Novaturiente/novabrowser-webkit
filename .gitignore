@@ -1,1 +1,5 @@
 target/
+spikes/w16-raf-leak/run-*/
+# screenshots show logged-in EEC dashboard data; stderr logs carry page URLs
+spikes/w16-raf-leak/*.png
+spikes/w16-raf-leak/*.stderr

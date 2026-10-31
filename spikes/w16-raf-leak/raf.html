@@ -1,0 +1,7 @@
+<!doctype html><title>raf</title><p>idle rAF loop, like RouteCenterLoader</p>
+<script>
+let n = 0;
+const tick = () => { performance.now(); n++; requestAnimationFrame(tick); };
+requestAnimationFrame(tick);
+setInterval(() => document.title = "raf " + n, 5000);
+</script>

@@ -36,8 +36,8 @@ cmake -S "$SRC" -B "$BUILD" -G Ninja \
   -D PORT=GTK -D USE_GTK4=ON -D USE_SOUP2=OFF \
   -D ENABLE_DOCUMENTATION=OFF -D ENABLE_INTROSPECTION=OFF -D ENABLE_MINIBROWSER=OFF \
   -D ENABLE_SPEECH_SYNTHESIS=OFF -D USE_FLITE=OFF -D USE_LIBBACKTRACE=OFF "${lto[@]}"
-# -j8: WebKit unified sources take up to ~2 GB per clang job; run.sh's 20 GB cap is the hard limit
-ninja -C "$BUILD" -j8
+# -j8: WebKit unified sources take up to ~2 GB per clang job; run.sh's memory cap is the hard limit
+ninja -C "$BUILD" -j"${JOBS:-8}"
 if [ "$stage" = pkg ]; then
   rm -rf "$HOME/wk-build/stage-pkg"
   DESTDIR=$HOME/wk-build/stage-pkg ninja -C "$BUILD" install

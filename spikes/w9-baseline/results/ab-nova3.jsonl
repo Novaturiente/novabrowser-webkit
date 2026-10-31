@@ -1,0 +1,10 @@
+{"round":1,"variant":"webkit","pkg":"webkitgtk-6.0-nova 2.54.2-3","load":"0.76 0.49 0.40","out":{"duration_s":50,"result":{"score":26.2,"confidence":"± 1.6","valid":true,"vis":"visible","focus":false}}}
+{"round":2,"variant":"webkit","pkg":"webkitgtk-6.0-nova 2.54.2-3","load":"0.90 0.55 0.43","out":{"duration_s":25,"result":{"score":26.4,"confidence":"± 1.3","valid":true,"vis":"visible","focus":false}}}
+{"round":3,"variant":"webkit","pkg":"webkitgtk-6.0-nova 2.54.2-3","load":"1.36 0.70 0.48","out":{"duration_s":25,"result":{"score":26.8,"confidence":"± 1.3","valid":true,"vis":"visible","focus":false}}}
+{"round":4,"variant":"webkit","pkg":"webkitgtk-6.0-nova 2.54.2-3","load":"1.70 0.84 0.53","out":{"duration_s":25,"result":{"score":26.4,"confidence":"± 1.3","valid":true,"vis":"visible","focus":false}}}
+{"round":1,"variant":"v3-nosb","load":"2.09 1.08 0.64","out":{"duration_s":25,"result":{"score":26.6,"confidence":"± 1.3","valid":true,"vis":"visible","focus":false}}}
+{"round":1,"variant":"v2-nosb","load":"2.25 1.19 0.68","out":{"duration_s":20,"result":{"score":26.7,"confidence":"± 1.3","valid":true,"vis":"visible","focus":false}}}
+{"round":2,"variant":"v3-nosb","load":"2.37 1.33 0.75","out":{"duration_s":25,"result":{"score":26.7,"confidence":"± 1.2","valid":true,"vis":"visible","focus":false}}}
+{"round":2,"variant":"v2-nosb","load":"2.17 1.37 0.78","out":{"duration_s":20,"result":{"score":26.5,"confidence":"± 1.2","valid":true,"vis":"visible","focus":false}}}
+{"round":3,"variant":"v3-nosb","load":"2.45 1.52 0.85","out":{"duration_s":25,"result":{"score":26.5,"confidence":"± 1.3","valid":true,"vis":"visible","focus":false}}}
+{"round":3,"variant":"v2-nosb","load":"1.99 1.50 0.87","out":{"duration_s":25,"result":{"score":26.9,"confidence":"± 1.4","valid":true,"vis":"visible","focus":false}}}
