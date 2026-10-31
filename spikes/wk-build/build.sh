@@ -5,6 +5,8 @@
 #        build.sh pkg   -> same as use but prefix /usr (Arch layout), staged in ~/wk-build/stage-pkg
 #                          for pkg/PKGBUILD. Same source dir as gen: PGO names of static functions
 #                          include the source path, so moving the tree would lose part of the profile.
+#        BOLT=1 build.sh pkg -> also link with --emit-relocs so llvm-bolt can reorder the libraries
+#                          (relinks only: the flag goes into CMAKE_SHARED_LINKER_FLAGS).
 # Run it through run.sh: novahome runs other services, the build must stay under 20 GB RAM.
 # Flags follow Arch's webkitgtk-6.0 PKGBUILD (clang, lld, FORTIFY 2, no CET) plus our changes.
 set -euo pipefail
@@ -35,13 +37,21 @@ cmake -S "$SRC" -B "$BUILD" -G Ninja \
   -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX="$prefix" -D CMAKE_INSTALL_LIBDIR=lib \
   -D PORT=GTK -D USE_GTK4=ON -D USE_SOUP2=OFF \
   -D ENABLE_DOCUMENTATION=OFF -D ENABLE_INTROSPECTION=OFF -D ENABLE_MINIBROWSER=OFF \
-  -D ENABLE_SPEECH_SYNTHESIS=OFF -D USE_FLITE=OFF -D USE_LIBBACKTRACE=OFF "${lto[@]}"
+  -D ENABLE_SPEECH_SYNTHESIS=OFF -D USE_FLITE=OFF -D USE_LIBBACKTRACE=OFF "${lto[@]}" \
+  -D CMAKE_SHARED_LINKER_FLAGS="$LDFLAGS${BOLT:+ -Wl,--emit-relocs}"
 # -j8: WebKit unified sources take up to ~2 GB per clang job; run.sh's memory cap is the hard limit
 ninja -C "$BUILD" -j"${JOBS:-8}"
 if [ "$stage" = pkg ]; then
   rm -rf "$HOME/wk-build/stage-pkg"
   DESTDIR=$HOME/wk-build/stage-pkg ninja -C "$BUILD" install
   echo "staged $HOME/wk-build/stage-pkg"
+  # keep the unstripped libraries per BuildID: the package is stripped, so coredumps from users
+  # can only be symbolized against these exact files (next build overwrites $BUILD)
+  for f in "$BUILD"/lib/libwebkitgtk-6.0.so.4.* "$BUILD"/lib/libjavascriptcoregtk-6.0.so.1.*; do
+    id=$(readelf -n "$f" | awk '/Build ID/{print $3}')
+    mkdir -p "$HOME/wk-build/symbols/$id" && cp -p "$f" "$HOME/wk-build/symbols/$id/"
+    echo "symbols: $HOME/wk-build/symbols/$id/$(basename "$f")"
+  done
 else
   rm -rf "$prefix"
   ninja -C "$BUILD" install
