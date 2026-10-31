@@ -84,7 +84,12 @@ pub fn init(data: &std::path::Path, cache: &std::path::Path) {
             CookiePersistentStorage::Sqlite,
         );
     }
-    let pages = WebContext::new();
+    // a leaking page (Gemini) filled RAM+swap and systemd-oomd killed the whole desktop
+    // session; cap each web process so WebKit kills only that tab (shows the crash page)
+    let mut mem = webkit6::MemoryPressureSettings::new();
+    mem.set_memory_limit(3072); // MB per web process
+    mem.set_kill_threshold(1.0); // fraction of the limit; WebKit's default 0 = never kill
+    let pages = WebContext::builder().memory_pressure_settings(&mem).build();
     let chrome = WebContext::new();
     for c in [&pages, &chrome] {
         let sm = c.security_manager().expect("security manager");
