@@ -197,7 +197,7 @@ fn decide(v: &WebView, d: &webkit6::PolicyDecision, kind: PolicyDecisionType) ->
             if link && (middle || ctrl) {
                 d.ignore();
                 let url = net::https_upgrade(&url).unwrap_or(url);
-                window::in_owner(v, || window::open(&url, false));
+                window::in_owner(v, || window::open_related(&url, false));
                 return true;
             }
             if kind == PolicyDecisionType::NavigationAction && !action.is_redirect() {
@@ -272,8 +272,8 @@ fn context_menu(
             let (kind, url) = payload.split_once(' ').unwrap_or((payload.as_str(), ""));
             let url = url.to_string();
             window::in_owner(&v, || match kind {
-                "tab" => window::open(&url, true),
-                "bg" => window::open(&url, false),
+                "tab" => window::open_related(&url, true),
+                "bg" => window::open_related(&url, false),
                 "win" => window::open_window(Some(url)),
                 _ => {
                     let v2 = v.clone();

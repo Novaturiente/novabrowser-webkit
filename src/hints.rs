@@ -219,14 +219,14 @@ fn act(v: &WebView, i: usize, target: &str, args: &[String], info: &Value) -> Re
     match target {
         "normal" | "current" => match href {
             Some(u) if info["blank"].as_bool() == Some(true) && target == "normal" => {
-                window::open(u, true)
+                window::open_related(u, true)
             }
             Some(u) if target == "current" => crate::tabview::load(v, u),
             _ => click(),
         },
         // qutebrowser tabs.background = true: `tab` opens in the background
         "tab" | "tab-bg" | "tab-fg" => match href {
-            Some(u) => window::open(u, target == "tab-fg"),
+            Some(u) => window::open_related(u, target == "tab-fg"),
             None => click(),
         },
         "window" => match href {

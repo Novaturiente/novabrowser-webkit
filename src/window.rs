@@ -40,6 +40,8 @@ pub struct Tab {
     pub icon: String,
     /// Stable id for the tab bar's element (animated open/close/move).
     pub key: u64,
+    /// `key` of the tab whose page opened this one (0: opened by the user).
+    pub opener: u64,
 }
 
 #[derive(Default)]
@@ -405,6 +407,7 @@ fn new_tab(view: Option<WebView>, url: String, title: String) -> Tab {
             TAB_KEY.set(TAB_KEY.get() + 1);
             TAB_KEY.get()
         },
+        opener: 0,
     }
 }
 
@@ -412,10 +415,31 @@ thread_local! {
     static TAB_KEY: Cell<u64> = const { Cell::new(0) };
 }
 
-fn add_tab(tab: Tab, foreground: bool) {
+/// Where a tab opened from tab `active` goes: right after it and the tabs it already opened.
+fn related_slot(tabs: &[Tab], active: usize) -> usize {
+    let Some(a) = tabs.get(active) else { return tabs.len() };
+    let mut at = active + 1;
+    while tabs.get(at).is_some_and(|t| t.opener == a.key) {
+        at += 1;
+    }
+    at.max(tabs.iter().take_while(|t| t.pinned).count())
+}
+
+/// `related`: the active tab's page opened it, so it goes next to that tab, not at the end.
+fn add_tab(mut tab: Tab, foreground: bool, related: bool) {
     let n = S.with_borrow_mut(|s| {
-        s.tabs.push(tab);
-        s.tabs.len() - 1
+        let at = match related {
+            true => related_slot(&s.tabs, s.active),
+            false => s.tabs.len(),
+        };
+        if related {
+            tab.opener = s.tabs.get(s.active).map_or(0, |t| t.key);
+        }
+        s.tabs.insert(at, tab);
+        if at <= s.last && s.tabs.len() > 1 {
+            s.last += 1;
+        }
+        at
     });
     if foreground || n == 0 {
         show(n);
@@ -427,7 +451,12 @@ fn add_tab(tab: Tab, foreground: bool) {
 
 /// A background tab loads only when first shown (lazy, like session restore).
 pub fn open(url: &str, foreground: bool) {
-    add_tab(new_tab(None, url.to_string(), String::new()), foreground);
+    add_tab(new_tab(None, url.to_string(), String::new()), foreground, false);
+}
+
+/// A link of the active tab's page opened in a new tab: placed next to it.
+pub fn open_related(url: &str, foreground: bool) {
+    add_tab(new_tab(None, url.to_string(), String::new()), foreground, true);
 }
 
 /// A popup the page opened (`create` signal): already a view, keeps window.opener.
@@ -437,7 +466,7 @@ pub fn adopt(view: WebView, foreground: bool) {
     if let Some(st) = stack {
         st.add_child(&view);
     }
-    add_tab(new_tab(Some(view), String::new(), String::new()), foreground);
+    add_tab(new_tab(Some(view), String::new(), String::new()), foreground, true);
 }
 
 /// The tab's view, created (and loaded / restored) on first need.
@@ -653,7 +682,8 @@ pub fn remove(n: usize) {
         }
         s.last = s.last.min(s.tabs.len().saturating_sub(1));
         let was_active = n == s.active;
-        if n < s.active || (was_active && s.active == s.tabs.len() && s.active > 0) {
+        // closing the active tab focuses the one before it (left), like qutebrowser `prev`
+        if n < s.active || (was_active && s.active > 0) {
             s.active -= 1;
         }
         Some((tab, was_active, s.tabs.len(), s.stack.clone(), s.window.clone()))
@@ -1994,7 +2024,22 @@ fn ui_message(text: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::{load_error_text, move_target};
+    use super::{load_error_text, move_target, new_tab, related_slot};
+
+    #[test]
+    fn related_tabs_stack_after_opener() {
+        let mut tabs: Vec<_> = (0..3).map(|_| new_tab(None, String::new(), String::new())).collect();
+        assert_eq!(related_slot(&tabs, 0), 1);
+        let mut child = new_tab(None, String::new(), String::new());
+        child.opener = tabs[0].key;
+        tabs.insert(1, child);
+        assert_eq!(related_slot(&tabs, 0), 2);
+        assert_eq!(related_slot(&tabs, 3), 4);
+        tabs[2].pinned = true;
+        tabs[0].pinned = true;
+        tabs[1].pinned = true;
+        assert_eq!(related_slot(&tabs, 0), 3);
+    }
 
     #[test]
     fn load_error_wording() {
