@@ -275,6 +275,8 @@ Newest first. Settled — don't reopen without new evidence.
 
 Newest first.
 
+- 2026-11-05 (IST) — `F` (hint all tab) on an element inside a link (card, span) opened it in the same tab: `pick` read `href` from the element only. Now it takes the closest `a[href]`/`area[href]`; non-links get a Ctrl/Cmd-click (qutebrowser) instead of a plain click. Checked in a throwaway profile via IPC keys: span inside `<a href=t2.html>` opened t2 as a background tab, active tab unchanged; a JS button saw `ctrlKey` (title `CTRL`). Not released.
+
 - 2026-11-05 (IST, 03:11) — Released 0.1.9 (related tabs next to opener, close focuses left tab). Workspace tests passed (13 browser, 2 extension); release.sh clean source package build and checks passed; GitHub v0.1.9 asset published; -bin package built from the uploaded asset. Both AUR updates pushed and remote hashes verified: novabrowser-webkit 1c7127e, novabrowser-webkit-bin 21b7c66. System installation unchanged.
 
 - 2026-11-05 (IST) — Tabs a page opens (popups, `target=_blank`, middle/Ctrl-click, hint `tab*`, context-menu tab/bg) now go right after the opener, stacking after tabs it already opened (`Tab.opener`, `window::related_slot`); typed `:open -t` still appends. Closing the active tab focuses the tab to its left (was: right). Checked: release build, `cargo test` (13 passing, new `related_tabs_stack_after_opener`). Not checked live in the GUI.

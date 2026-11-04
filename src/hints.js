@@ -101,7 +101,9 @@
     e.scrollIntoView({ block: "nearest", inline: "nearest" });
     const r = e.getClientRects()[0] || e.getBoundingClientRect();
     const url = (x) => (x ? new URL(x, e.ownerDocument.baseURI).href : null);
-    const href = e.href instanceof SVGAnimatedString ? e.href.baseVal : e.getAttribute("href") !== null ? e.href : null;
+    // an element inside a link (card, thumbnail, span) opens that link
+    const a = e.closest("a[href], area[href]") || e;
+    const href = a.href instanceof SVGAnimatedString ? a.href.baseVal : a.getAttribute("href") !== null ? a.href : null;
     return {
       x: r.left + off.left + Math.min(r.width / 2, 20),
       y: r.top + off.top + r.height / 2,
@@ -114,20 +116,23 @@
 
   // WebKit has no trusted input from the UI process (W5): a full synthetic pointer +
   // mouse sequence, then click(); editables get focus first.
-  const fire = (e, type, x, y) => {
-    const o = { bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y, view: e.ownerDocument.defaultView, button: 0, buttons: type.endsWith("down") ? 1 : 0 };
+  const fire = (e, type, x, y, ctrl = false) => {
+    const o = { bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y, view: e.ownerDocument.defaultView, button: 0, buttons: type.endsWith("down") ? 1 : 0, ctrlKey: ctrl, metaKey: ctrl };
     const C = type.startsWith("pointer") ? PointerEvent : MouseEvent;
     return e.dispatchEvent(new C(type, type.startsWith("pointer") ? { ...o, pointerId: 1, pointerType: "mouse", isPrimary: true } : o));
   };
-  H.click = (i) => {
+  // `ctrl`: new-tab hints on non-links fake Ctrl/Cmd-click (qutebrowser), so links and
+  // JS routers that honour modifiers open a new tab
+  H.click = (i, ctrl = false) => {
     const [e, off] = elems[i];
     const r = e.getClientRects()[0] || e.getBoundingClientRect();
     const x = r.left + Math.min(r.width / 2, 20), y = r.top + r.height / 2;
     if (e.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(e.tagName)) e.focus();
-    for (const t of ["pointerover", "mouseover", "pointerdown", "mousedown"]) fire(e, t, x, y);
+    for (const t of ["pointerover", "mouseover", "pointerdown", "mousedown"]) fire(e, t, x, y, ctrl);
     if (e.focus && !e.isContentEditable) try { e.focus({ preventScroll: true }); } catch (_) {}
-    for (const t of ["pointerup", "mouseup"]) fire(e, t, x, y);
-    e.click();
+    for (const t of ["pointerup", "mouseup"]) fire(e, t, x, y, ctrl);
+    if (ctrl) fire(e, "click", x, y, true);
+    else e.click();
     return true;
   };
   H.hover = (i) => {

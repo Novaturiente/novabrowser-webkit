@@ -227,7 +227,7 @@ fn act(v: &WebView, i: usize, target: &str, args: &[String], info: &Value) -> Re
         // qutebrowser tabs.background = true: `tab` opens in the background
         "tab" | "tab-bg" | "tab-fg" => match href {
             Some(u) => window::open_related(u, target == "tab-fg"),
-            None => click(),
+            None => web::eval_quiet(v, &format!("__nova.click({i}, true)")),
         },
         "window" => match href {
             Some(u) => window::open_window(Some(u.to_string())),
