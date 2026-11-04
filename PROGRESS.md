@@ -275,6 +275,8 @@ Newest first. Settled — don't reopen without new evidence.
 
 Newest first.
 
+- 2026-11-05 (IST, 03:29) — Released 0.1.10 (hint `F` opens the enclosing link in a new tab; aria2 downloads that fail before any byte fall back to WebKit). Workspace tests passed (13 browser, 2 extension); release.sh clean source package build and checks passed; GitHub v0.1.10 asset published; -bin package built from the uploaded asset. Both AUR updates pushed and remote hashes verified: novabrowser-webkit 664d1da, novabrowser-webkit-bin 5942e2b. System installation unchanged.
+
 - 2026-11-05 (IST) — 4kwallpapers.com image downloads failed: aria2 got HTTP 403 from Cloudflare (aria2c with the Safari UA: 403; same request without UA, or curl with it: 200; not stable, a later aria2 run got 200). Now an aria2 download that errors before any byte (http/https/ftp) is retried by WebKit, like one aria2 refuses; the aria2 entry is dropped so the list shows one download. `Dl.private` keeps private windows on the private session. Checked: throwaway profile + local server that 403s requests with aria2's `Want-Digest` header: aria2 403, warning "aria2 failed (... status=403); using WebKit.", WebKit 200, one ok entry (12345 bytes). Not released.
 
 - 2026-11-05 (IST) — `F` (hint all tab) on an element inside a link (card, span) opened it in the same tab: `pick` read `href` from the element only. Now it takes the closest `a[href]`/`area[href]`; non-links get a Ctrl/Cmd-click (qutebrowser) instead of a plain click. Checked in a throwaway profile via IPC keys: span inside `<a href=t2.html>` opened t2 as a background tab, active tab unchanged; a JS button saw `ctrlKey` (title `CTRL`). Not released.
