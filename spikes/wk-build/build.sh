@@ -38,6 +38,7 @@ cmake -S "$SRC" -B "$BUILD" -G Ninja \
   -D PORT=GTK -D USE_GTK4=ON -D USE_SOUP2=OFF \
   -D ENABLE_DOCUMENTATION=OFF -D ENABLE_INTROSPECTION=OFF -D ENABLE_MINIBROWSER=OFF \
   -D ENABLE_SPEECH_SYNTHESIS=OFF -D USE_FLITE=OFF -D USE_LIBBACKTRACE=OFF "${lto[@]}" \
+  -D ENABLE_WEB_RTC=ON -D USE_GSTREAMER_WEBRTC=ON -D USE_LIBRICE=OFF \
   -D CMAKE_SHARED_LINKER_FLAGS="$LDFLAGS${BOLT:+ -Wl,--emit-relocs}"
 # -j8: WebKit unified sources take up to ~2 GB per clang job; run.sh's memory cap is the hard limit
 ninja -C "$BUILD" -j"${JOBS:-8}"

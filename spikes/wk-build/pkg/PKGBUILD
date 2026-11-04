@@ -5,11 +5,12 @@
 #   sudo pacman -U /var/cache/pacman/pkg/webkitgtk-6.0-2.54.2-1-x86_64.pkg.tar.zst
 pkgname=webkitgtk-6.0-nova
 pkgver=2.54.2
-pkgrel=3
+pkgrel=4
 # -2: ../patches/0001-color-filter-roles.patch (role-aware -apple-color-filter for dark mode)
 # -3: ../patches/0000 webkitglib/2.54 branch fixes since 2.54.2 (security), 0002 Skia
 #     releaseUnusedResources self-deadlock (page hangs under memory pressure), 0003 upstream
 #     f311092c0d (AcceleratedSurface timer abort)
+# -4: WebRTC (GStreamer webrtcbin + libnice; librice off: not packaged in Arch) for Google Meet
 pkgdesc="Web content engine for GTK (PGO + x86-64-v3 + ThinLTO build, no introspection/docs, novabrowser patches)"
 url="https://webkitgtk.org"
 arch=(x86_64)
@@ -22,7 +23,8 @@ depends=(at-spi2-core atk bubblewrap cairo enchant expat fontconfig freetype2 gd
   xdg-dbus-proxy zlib)
 optdepends=('geoclue: Geolocation support'
   'gst-libav: nonfree media decoding'
-  'gst-plugins-bad: media decoding'
+  'gst-plugins-bad: media decoding, WebRTC (webrtcbin)'
+  'libnice: WebRTC ICE (GStreamer nice plugin)'
   'gst-plugins-good: media decoding')
 provides=("webkitgtk-6.0=$pkgver" libjavascriptcoregtk-6.0.so libwebkitgtk-6.0.so)
 conflicts=(webkitgtk-6.0)

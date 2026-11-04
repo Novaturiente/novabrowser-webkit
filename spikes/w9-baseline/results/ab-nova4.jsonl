@@ -1,0 +1,6 @@
+{"round":1,"variant":"v3-nosb","load":"1.47 1.81 2.61","out":{"duration_s":45,"result":{"score":25.3,"confidence":"± 1.8","valid":true,"vis":"visible","focus":false}}}
+{"round":1,"variant":"v4-nosb","load":"2.38 1.98 2.63","out":{"duration_s":25,"result":{"score":24.3,"confidence":"± 2.0","valid":true,"vis":"visible","focus":false}}}
+{"round":2,"variant":"v3-nosb","load":"8.93 4.25 3.39","out":{"duration_s":55,"result":{"score":16.1,"confidence":"± 5.4","valid":true,"vis":"visible","focus":false}}}
+{"round":2,"variant":"v4-nosb","load":"6.16 4.05 3.36","out":{"duration_s":25,"result":{"score":24.1,"confidence":"± 2.5","valid":true,"vis":"visible","focus":false}}}
+{"round":3,"variant":"v3-nosb","load":"5.30 4.05 3.38","out":{"duration_s":25,"result":{"score":23.7,"confidence":"± 2.7","valid":true,"vis":"visible","focus":false}}}
+{"round":3,"variant":"v4-nosb","load":"10.23 5.68 3.98","out":{"duration_s":47,"result":{"score":15.2,"confidence":"± 4.5","valid":true,"vis":"visible","focus":false}}}
