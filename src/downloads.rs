@@ -32,6 +32,8 @@ struct Dl {
     total: i64,
     start: u64,
     end: u64,
+    /// From a private window: a WebKit fallback uses the private session.
+    private: bool,
 }
 
 const KEEP: usize = 500;
@@ -78,6 +80,7 @@ fn with<R>(f: impl FnOnce(&mut Vec<Dl>) -> R) -> R {
                     total: e["size"].as_i64().unwrap_or(0),
                     start: e["start"].as_u64().unwrap_or(0),
                     end: e["end"].as_u64().unwrap_or(0),
+                    private: false,
                 })
                 .collect()
         });
@@ -173,6 +176,7 @@ fn started(session: &NetworkSession, dl: &Download, private: bool) {
             total: 0,
             start: now(),
             end: 0,
+            private,
         })
     });
     dl.connect_decide_destination(|dl, suggested| {
@@ -309,8 +313,8 @@ fn aria2_added(id: u64, result: Result<String, String>) {
         Ok(gid) => {
             let known = with(|l| l.iter().any(|d| d.gid.as_deref() == Some(&gid)));
             if !known {
-                let url = pending.map(|p| p.1).unwrap_or_default();
-                with(|l| l.push(aria_entry(gid, url)));
+                let (url, private) = pending.map(|p| (p.1, p.2)).unwrap_or_default();
+                with(|l| l.push(aria_entry(gid, url, private)));
             }
             window::message("info", "Download started (aria2).");
         }
@@ -326,7 +330,7 @@ fn aria2_added(id: u64, result: Result<String, String>) {
     }
 }
 
-fn aria_entry(gid: String, url: String) -> Dl {
+fn aria_entry(gid: String, url: String, private: bool) -> Dl {
     Dl {
         wk: None,
         gid: Some(gid),
@@ -337,12 +341,14 @@ fn aria_entry(gid: String, url: String) -> Dl {
         total: 0,
         start: now(),
         end: 0,
+        private,
     }
 }
 
 /// aria2 status poll: update, add resumed/unknown ones, finish.
 fn aria2_update(items: Vec<Value>) {
     let mut done = Vec::new();
+    let mut retry = Vec::new();
     with(|l| {
         // magnet / .torrent / metalink: the real download continues under a new gid;
         // move our entry to it first, so the follow-up never shows up as a second one
@@ -363,7 +369,7 @@ fn aria2_update(items: Vec<Value>) {
                 Some(i) => i,
                 None => {
                     let url = it["files"][0]["uris"][0]["uri"].as_str().unwrap_or("").to_string();
-                    l.push(aria_entry(gid.to_string(), url));
+                    l.push(aria_entry(gid.to_string(), url, false));
                     l.len() - 1
                 }
             };
@@ -386,6 +392,11 @@ fn aria2_update(items: Vec<Value>) {
                     d.end = now();
                     done.push((d.path.clone(), false, None));
                 }
+                // failed before any byte (e.g. Cloudflare 403s aria2 sending a browser UA):
+                // WebKit retries it as a real browser, like a download aria2 refused
+                "error" if d.received == 0 && ["http://", "https://", "ftp://"].iter().any(|s| d.url.starts_with(s)) => {
+                    retry.push((gid.to_string(), d.url.clone(), d.private, it["errorMessage"].as_str().unwrap_or("").to_string()));
+                }
                 "removed" | "error" => {
                     // cancelled: drop the partial file (a torrent folder is left alone)
                     if status == "removed" {
@@ -402,7 +413,14 @@ fn aria2_update(items: Vec<Value>) {
                 _ => {}
             }
         }
+        l.retain(|d| !retry.iter().any(|r| d.gid.as_deref() == Some(r.0.as_str())));
     });
+    for (_, url, private, why) in &retry {
+        window::message("warning", &format!("aria2 failed ({why}); using WebKit."));
+        FORCE_WEBKIT.with_borrow_mut(|f| f.push(url.clone()));
+        let s = if *private { web::private_session() } else { web::session() };
+        s.download_uri(url);
+    }
     for (p, failed, why) in &done {
         finished(p, *failed, why.as_deref());
     }
