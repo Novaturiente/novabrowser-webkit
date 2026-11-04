@@ -275,6 +275,8 @@ Newest first. Settled — don't reopen without new evidence.
 
 Newest first.
 
+- 2026-11-05 (IST, 03:11) — Released 0.1.9 (related tabs next to opener, close focuses left tab). Workspace tests passed (13 browser, 2 extension); release.sh clean source package build and checks passed; GitHub v0.1.9 asset published; -bin package built from the uploaded asset. Both AUR updates pushed and remote hashes verified: novabrowser-webkit 1c7127e, novabrowser-webkit-bin 21b7c66. System installation unchanged.
+
 - 2026-11-05 (IST) — Tabs a page opens (popups, `target=_blank`, middle/Ctrl-click, hint `tab*`, context-menu tab/bg) now go right after the opener, stacking after tabs it already opened (`Tab.opener`, `window::related_slot`); typed `:open -t` still appends. Closing the active tab focuses the tab to its left (was: right). Checked: release build, `cargo test` (13 passing, new `related_tabs_stack_after_opener`). Not checked live in the GUI.
 
 - 2026-10-31 (IST, 00:05 Nov 1) — BOLT trial on 2.54.2-3: relinked with `--emit-relocs` (relink only), profiled 3× Speedometer (`perf -j any,u -F 20000`), BOLTed `libwebkitgtk`: taken branches -41%, Speedometer 26.80 vs 25.88 (+3.6%, wins 4/4 interleaved rounds, `results/ab-bolt.jsonl`; train = test benchmark, so optimistic); `tests/smoke.sh` all passed. Sandbox on (bwrap web process maps the BOLT lib from `/tmp/wkbolt`): 27.03 vs 26.10 (+3.5%, 4/4 rounds). BOLTed JSC: SIGSEGV in `executeModuleProgram` (white Speedometer windows), dropped. Not shipped yet; not checked: video, real browsing. `build.sh` now saves symbols per BuildID; -3 symbols saved (`4f9b14e6…`, `64cdcde3…`).
