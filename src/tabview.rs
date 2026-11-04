@@ -101,7 +101,9 @@ pub fn connect(view: &WebView) {
     view.connect_load_failed(|v, _ev, uri, err| {
         // HTTPS-only: a site without working https gets an error page; say why
         let cancelled = err.matches(webkit6::NetworkError::Cancelled)
-            || err.matches(webkit6::PolicyError::FrameLoadInterruptedByPolicyChange);
+            || err.matches(webkit6::PolicyError::FrameLoadInterruptedByPolicyChange)
+            // a bare media URL: WebKit plays it in a media document, not a failure
+            || err.matches(webkit6::MediaError::Load);
         if !cancelled && net::was_upgraded(uri) {
             let host = net::authority(uri).map(|(a, _)| a.to_string()).unwrap_or_default();
             let text = format!("{host}: https failed ({}). HTTPS-only upgraded it; :https-toggle (<Space>th) allows http here", err.message());
