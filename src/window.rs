@@ -624,6 +624,7 @@ pub fn show(n: usize) {
         if s.active != n && s.active < s.tabs.len() {
             s.last = s.active;
             s.tabs[s.active].seen = std::time::Instant::now();
+            crate::passwords::hide(); // the list belongs to the field in the tab we leave
         }
         s.active = n;
         true

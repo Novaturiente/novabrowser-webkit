@@ -18,7 +18,8 @@ const JS: &str = include_str!("passwords.js");
 pub fn add_scripts(ucm: &UserContentManager) {
     let src = format!(
         "globalThis.__novaPw = ({JS})((s) => webkit.messageHandlers.nova.postMessage('pw submit ' + s));\
-         addEventListener('focusin', () => setTimeout(() => {{ const f = __novaPw.focus(); webkit.messageHandlers.nova.postMessage('pw focus ' + f); }}, 0), true);"
+         addEventListener('focusin', () => setTimeout(() => {{ const f = __novaPw.focus(); webkit.messageHandlers.nova.postMessage('pw focus ' + f); }}, 0), true);\
+         addEventListener('focusout', () => setTimeout(() => {{ if (!__novaPw.focus()) webkit.messageHandlers.nova.postMessage('pw focus '); }}, 0), true);"
     );
     ucm.add_script(&UserScript::for_world(
         &src,

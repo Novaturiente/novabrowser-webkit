@@ -1,7 +1,7 @@
 <!doctype html>
 <!-- password test page: a login form. The title reports what the fields hold, so a test
      can see a fill over IPC: "user=<u> pass=<p>". ?submit=<u>,<p> types those in and
-     submits (save prompt test). -->
+     submits (save prompt test). ?blur=1 takes focus off the field after 2 s. -->
 <title>login</title>
 <form id="f" action="/done.html" method="get">
   <input id="u" name="username" autocomplete="username" autofocus>
@@ -11,6 +11,7 @@
 <script>
   const u = document.getElementById('u'), p = document.getElementById('p');
   setInterval(() => { document.title = `user=${u.value} pass=${p.value}`; }, 100);
+  if (new URLSearchParams(location.search).get('blur')) setTimeout(() => document.activeElement.blur(), 2000);
   const s = new URLSearchParams(location.search).get('submit');
   if (s) setTimeout(() => {
     const [user, pass] = s.split(',');

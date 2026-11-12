@@ -102,6 +102,16 @@ wait_for '"popup":\[3[0-9]{2},(9[0-9]|1[0-4][0-9])\]' 5 && ok "10.2 suggestion l
 "$bin" --key '<Down><Return>' >/dev/null
 wait_for '"title":"user=alice pass=hunter2"' 15 && ok "10.3 Down, Enter fills the first row" || fail "10.3 keys: $(q)"
 
+# the list goes when the field loses focus, and when its tab is left
+"$bin" --cmd "open $base/login.html?blur=1" >/dev/null
+wait_for '"suggestions":2' 15 || fail "blur: list not shown: $(q)"
+wait_for '"suggestions":0' 5 && ok "list hides when the field loses focus" || fail "list stays after blur: $(q | grep -o '\"suggestions\":[0-9]*')"
+"$bin" --cmd "open $base/login.html?x=3" >/dev/null
+wait_for '"suggestions":2' 15 || fail "tab: list not shown: $(q)"
+"$bin" --cmd "open -t $(page other)" >/dev/null
+wait_for '"suggestions":0' 5 && ok "list hides on tab switch" || fail "list stays after tab switch: $(q | grep -o '\"suggestions\":[0-9]*')"
+"$bin" --cmd "tab-close" >/dev/null; sleep 0.5
+
 # 10.5 sign-up field: "Generate a strong password" row fills 20 characters
 "$bin" --cmd "open $base/signup.html" >/dev/null
 wait_for '"suggestions":[1-9]' 15 && ok "10.5 new-password field shows the list" || fail "10.5 generate row: $(q)"
