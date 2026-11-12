@@ -185,7 +185,11 @@ fn answer(view: usize, cb: &Callback, allow: bool) {
                 v.terminate_web_process();
             }
         }
-        Callback::Hang => {}
+        Callback::Hang => {
+            if let Some(v) = view_by_id(view) {
+                hung_later(&v, 5); // still hung after "keep waiting": ask again
+            }
+        }
     }
 }
 
@@ -314,6 +318,16 @@ pub fn hung(view: &WebView) {
         "This page isn't responding. Kill it?".into(),
         Callback::Hang,
     );
+}
+
+/// Ask about a hung page only if it still hangs `secs` from now.
+pub fn hung_later(view: &WebView, secs: u32) {
+    let v = view.downgrade(); // a tab closed meanwhile isn't asked about
+    glib::timeout_add_seconds_local_once(secs, move || {
+        if let Some(v) = v.upgrade().filter(|v| !v.is_web_process_responsive()) {
+            hung(&v);
+        }
+    });
 }
 
 /// The page recovered: its hang question is moot.

@@ -128,7 +128,7 @@ pub fn connect(view: &WebView) {
         if v.is_web_process_responsive() {
             crate::permissions::responsive(v);
         } else {
-            crate::permissions::hung(v);
+            crate::permissions::hung_later(v, 10); // grace like Epiphany: busy pages recover
         }
     });
     view.connect_close(window::did_close);

@@ -77,6 +77,9 @@ pub struct State {
     restore: Option<Value>,
     /// Private window: tabs on the ephemeral session, nothing saved.
     pub private: bool,
+    /// Tabs as last handed to the session autosave (urls, pins, active): titles,
+    /// progress and keys don't save (each save serializes every tab's history).
+    saved_key: String,
 }
 
 static BACKDROP_CSS: std::sync::Once = std::sync::Once::new();
@@ -913,7 +916,7 @@ pub fn refresh() {
     let cfg = config::get();
     let tab_fmt = cfg.str("tabs.title.format");
     let pin_fmt = cfg.str("tabs.title.format_pinned");
-    let Some((tabbar, window, bar_json, title)) = S.with_borrow(|s| {
+    let Some((tabbar, window, bar_json, title, key)) = S.with_borrow(|s| {
         let tabs: Vec<String> = s
             .tabs
             .iter()
@@ -935,6 +938,9 @@ pub fn refresh() {
                 )
             })
             .collect();
+        let key = s.tabs.iter().fold(s.active.to_string(), |k, t| {
+            format!("{k} {} {} {} {}", t.url, t.pinned, t.keep, t.crashed.is_some())
+        });
         let t = s.tabs.get(s.active)?;
         // the open question has its own popup (set_prompt), not the tab bar
         let (level, msg) = s.message.clone().unwrap_or_default();
@@ -976,11 +982,14 @@ pub fn refresh() {
             s.window.clone()?,
             format!("{{\"tabs\":[{}],\"status\":{status}}}", tabs.join(",")),
             title,
+            key,
         ))
     }) else {
         return;
     };
-    crate::session::dirty();
+    if S.with_borrow_mut(|s| std::mem::replace(&mut s.saved_key, key) != s.saved_key) {
+        crate::session::dirty();
+    }
     web::eval_page(&tabbar, &format!("window.nova && nova.apply && nova.apply({bar_json})"));
     window.set_title(Some(&title));
 }

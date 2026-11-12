@@ -19,6 +19,7 @@ Tests drive the browser over IPC: `--cmd`, `--query state`, `--key <keys>`.
 - **Phase:** 1–8 and 10 built and checked by S/F/P where IPC can reach; user's manual pass (`docs/manual-test.md`) next.
 - **Next action:** user runs `docs/manual-test.md`; watch EEC Home / Gemini on `webkitgtk-6.0-nova` 2.54.2-3 (`nb-memlog` running) and drop patch 0000 when 2.54.3 ships. Released 0.1.8 (2026-10-30). D7 duty now live: rebuild `webkitgtk-6.0-nova-bin` within 3 days of each WebKitGTK release/advisory. C5 (aria2) and C6 done in the CEF repo (`main` 650078a, not pushed).
 - **Blockers:** none.
+- **2026-11-12:** jank fix 8.25/8.26 built, not released; user to confirm the focus-in stutter is gone on a build with nova-core `555f624`.
 
 ---
 
@@ -212,6 +213,9 @@ Other
 - [x] 8.22 Welcome page once per profile (`<data>/welcomed`), `:help`, `--import` offers per browser found (F: welcome tab on a fresh profile, `welcomed` written)
 - [~] 8.23 `--import [name|dir|file]`: Chrome, Chromium, Helium, Brave, Vivaldi, Edge, Firefox, Zen, LibreWolf, Floorp, qutebrowser (history, bookmarks, quickmarks, session) + `novabrowser` (CEF edition, built 2026-10-29 in nova-core 7c1557b — earlier this line claimed it before it existed: history + cmd history + marks merged; config dir files, sessions, permissions.json, downloads.json copied where missing; zoom not carried: Chromium keeps it in `Preferences`); idempotent (F: Chromium `History` dir imports 2 rows; F: CEF import merges, copies, keeps existing files, second run changes nothing; copy of the real CEF profile: 556 history rows + 184 commands, its config.ts passes `--check-config`); [m] the other browsers
 - [ ] 8.24 Exit: one week as the only browser, problems logged here
+- [~] 8.25 Focus-in micro-stutter (user, 2026-11-12: "janky" when switching to the browser, now and then; restart fixes it, pages sometimes don't load until restart). Session autosave cost 25–45 ms of UI thread per save (live Work profile, 6 runs, Gmail tab's history blob 640 KB) and every `refresh()` (keys, progress, titles) scheduled one. Fixed like Epiphany (`ephy-session.c`): nova-core `555f624` encodes + writes autosaves on a worker thread (numbered, an older save never overwrites a newer one; quit/close still save synchronously; U `older_save_never_overwrites_newer`); `window::refresh` marks the session dirty only when urls/pins/keep/crashed/active change (live, throwaway data dir: title ticking every 300 ms for 6 s → no rewrite; new tab → rewritten). Left: user confirms the stutter is gone; not proven the save was the cause (two captures: UI thread busy ≤ 25 ms, one DigitalOcean page process at ~40% of a core rendering); "pages don't load" not caught live yet
+- [~] 8.26 Hung page prompt like Epiphany: asks only if still hung 10 s after WebKit flags it (`permissions::hung_later`), asks again 5 s after "Keep waiting" (live: prompt ~14 s after keys reached a `while(1)` page; `n` → asked again after ~5 s). Left: `y` kill not re-checked (pre-existing path)
+- [ ] 8.27 Bug: a tab change calls `modes::enter(Mode::Normal)` (`window.rs` tab switch) even while a prompt is open: the prompt stays on screen but y/n no longer reach it (seen once in the 8.26 check with two hung tabs; not reproduced)
 
 Phase 8 note (2026-10-29): every item has code; F checks what IPC can reach.
 What needs eyes or a mouse (tab menu, drag, context menu, pills, inspector window,
@@ -274,6 +278,8 @@ Newest first. Settled — don't reopen without new evidence.
 ## Session log
 
 Newest first.
+
+- 2026-11-12 (IST, 12:45) — Jank on focus-in (8.25). Live Work profile: no memory growth (UI 64 MB, web processes < 300 MB, memlog flat over 11 days). UI thread sampled every 10 ms for 60 s: busy ≤ 25 ms, no disk waits. `perf` needs `ptrace_scope=0` (user ran sudo) and refuses `-g`; flat profile: DigitalOcean tab's web process 61% of samples (53% `libwebkitgtk`, 2.5% JSC), threaded compositor 15%, UI 14%. novahome `~/wk-build` (symbols per BuildID) is gone, so WebKit frames can't be named. Compared Epiphany (`fe86b06`): defaults mostly; session saved off-thread on load/tab changes only; hang dialog after 10 s grace. Ported both (nova-core `555f624`, pin bumped). Build + 15 workspace tests + 92 nova-core tests pass; live checks in a throwaway data dir as in 8.25/8.26. Found 8.27. Not released.
 
 - 2026-11-05 (IST, 04:05) — Published `webkitgtk-6.0-nova-bin` 2.54.2-4 (WebRTC) for the Meet blank page: installed 2.54.2-3 has no WebRTC (`ldd` shows no `libgstwebrtc`). -4 package fetched from novahome (`a623efb2…`), deps unchanged, `libgstwebrtc-1.0` resolves; GitHub release `webkitgtk-6.0-nova-2.54.2-4` (asset sha256 `6a393b9e…`); AUR PKGBUILD pkgrel 4 (+ `libnice` optdepend) built from the uploaded asset; AUR git `d3e1cf4` (fresh clone shows pkgrel 4), but the AUR RPC/web page still said 2.54.2-3 several minutes after the push. Not checked: install, quiet Speedometer A/B vs -3, real Meet call.
 
