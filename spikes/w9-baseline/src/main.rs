@@ -15,6 +15,19 @@ const SAFARI_JS: &str = "Object.defineProperty(Navigator.prototype, 'platform', 
 const COMPAT: &str = "JSON.stringify({title: document.title, url: location.href, text: (document.body ? document.body.innerText : '').replace(/\\s+/g, ' ').slice(0, 600), playing: [...document.querySelectorAll('video,audio')].some(m => !m.paused && m.currentTime > 0)})";
 const PROBE: &str = "JSON.stringify({ua: navigator.userAgent, platform: navigator.platform, vendor: navigator.vendor, uaData: typeof navigator.userAgentData, appVersion: navigator.appVersion})";
 
+// copy of src/web.rs FOCUS_JS at 2cb9591
+const FOCUS_JS: &str = r#"(() => {
+  const ed = (e) => !!e && (e.isContentEditable || (e.tagName === 'INPUT' && !/^(button|checkbox|color|file|hidden|image|radio|range|reset|submit)$/i.test(e.type)) || e.tagName === 'TEXTAREA' || e.tagName === 'SELECT');
+  const send = (s) => { try { webkit.messageHandlers.nova.postMessage(s); } catch (_) {} };
+  let last = null;
+  const report = (force) => { let a = document.activeElement; while (a && a.shadowRoot && a.shadowRoot.activeElement) a = a.shadowRoot.activeElement; const v = ed(a); if (force === true || v !== last) { last = v; send('focus ' + (v ? 1 : 0)); } };
+  addEventListener('focusin', () => report(true), true);
+  addEventListener('pointerdown', () => setTimeout(() => report(true), 0), true);
+  addEventListener('focusout', () => setTimeout(report, 0), true);
+  addEventListener('pageshow', () => { last = null; report(); });
+})();"#;
+const POINTERDOWN: &str = "  addEventListener('pointerdown', () => setTimeout(() => report(true), 0), true);\n";
+
 fn main() -> glib::ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let bench = args.iter().any(|a| a == "--speedometer");
@@ -77,6 +90,23 @@ fn main() -> glib::ExitCode {
                 ":root { -apple-color-filter: apple-invert-lightness() !important; }",
                 webkit6::UserContentInjectedFrames::AllFrames,
                 webkit6::UserStyleLevel::User,
+                &[],
+                &[],
+            ));
+        }
+        // FOCUS_JS cost (src/web.rs, 2026-11-13): --focus = current script, --focus-old =
+        // without the pointerdown listener added 2026-11-12; world "novabrowser", all frames
+        let focus_old = args0.iter().any(|a| a == "--focus-old");
+        if focus_old || args0.iter().any(|a| a == "--focus") {
+            assert!(FOCUS_JS.contains(POINTERDOWN), "POINTERDOWN no longer matches FOCUS_JS");
+            let js = if focus_old { FOCUS_JS.replace(POINTERDOWN, "") } else { FOCUS_JS.to_string() };
+            let ucm = view.user_content_manager().unwrap();
+            ucm.register_script_message_handler("nova", Some("novabrowser"));
+            ucm.add_script(&webkit6::UserScript::for_world(
+                &js,
+                webkit6::UserContentInjectedFrames::AllFrames,
+                webkit6::UserScriptInjectionTime::End,
+                "novabrowser",
                 &[],
                 &[],
             ));

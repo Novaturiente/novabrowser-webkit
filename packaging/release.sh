@@ -15,9 +15,10 @@ grep -q '^nova-core = { git' "$repo/Cargo.toml" || { echo "nova-core must be a p
 
 # 1. source package: pin the tag tarball's sha256, build + test it
 src_sha=$(curl -fsSL "$url/archive/refs/tags/v$v.tar.gz" | sha256sum | cut -d' ' -f1)
-sed -i -e "s/^pkgver=.*/pkgver=$v/" -e "s/^pkgrel=.*/pkgrel=1/" \
-  -e "s/^sha256sums=.*/sha256sums=('$src_sha')/" "$aur/novabrowser-webkit/PKGBUILD"
-mkdir -p "$work/src" && cp "$aur/novabrowser-webkit/PKGBUILD" "$work/src/"
+# edit a copy; packaging/aur changes only once the build passed and the release exists
+mkdir -p "$work/src"
+sed -e "s/^pkgver=.*/pkgver=$v/" -e "s/^pkgrel=.*/pkgrel=1/" \
+  -e "s/^sha256sums=.*/sha256sums=('$src_sha')/" "$aur/novabrowser-webkit/PKGBUILD" > "$work/src/PKGBUILD"
 (cd "$work/src" && makepkg -f --cleanbuild)
 pkg=$(ls "$work"/src/novabrowser-webkit-"$v"-1-x86_64.pkg.tar.zst)
 
@@ -28,6 +29,7 @@ tarball=$work/novabrowser-webkit-$v-x86_64.tar.zst
 tar -C "$work/stage" -cf - usr | zstd -19 -T0 -f -o "$tarball"
 gh release create "v$v" "$tarball" -R Novaturiente/novabrowser-webkit --title "novabrowser-webkit $v" --generate-notes
 
+cp "$work/src/PKGBUILD" "$aur/novabrowser-webkit/PKGBUILD"
 bin_sha=$(sha256sum "$tarball" | cut -d' ' -f1)
 sed -i -e "s/^pkgver=.*/pkgver=$v/" -e "s/^pkgrel=.*/pkgrel=1/" \
   -e "s/^sha256sums=.*/sha256sums=('$bin_sha')/" "$aur/novabrowser-webkit-bin/PKGBUILD"

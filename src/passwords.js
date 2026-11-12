@@ -1,5 +1,5 @@
-// Login-field helper, evaluated by renderer.rs in every http(s) frame before page
-// scripts. `report` is a native function (not reachable from the page) that sends
+// Login-field helper, injected by passwords.rs (add_scripts) into the top frame of
+// http(s) pages at document start, in the novabrowser world. `report` is a native function (not reachable from the page) that sends
 // submitted credentials to the browser; the returned object stays in Rust.
 (function (report) {
   const D = document;

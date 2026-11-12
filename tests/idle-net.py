@@ -5,7 +5,7 @@ processes, curl/aria2 children) talks to. Polls /proc every 0.1 s, so connection
 than that can be missed; no root needed.
 Usage: [IDLE_PROFILE=dir] tests/idle-net.py [binary] [seconds=90]
 (IDLE_PROFILE: reuse that profile dir, e.g. to see a second start with adblock lists cached)"""
-import os, socket, subprocess, sys, tempfile, time
+import os, shutil, socket, subprocess, sys, tempfile, time
 
 binary = os.path.realpath(sys.argv[1] if len(sys.argv) > 1 else "target/release/novabrowser-webkit")
 secs = float(sys.argv[2]) if len(sys.argv) > 2 else 90
@@ -87,6 +87,8 @@ while time.time() < end and proc.poll() is None:
     time.sleep(0.1)
 subprocess.run([binary, "--cmd", "quit"], env=env, stdout=subprocess.DEVNULL)
 proc.wait(timeout=15)
+if not os.environ.get("IDLE_PROFILE"):
+    shutil.rmtree(tmp, ignore_errors=True)
 
 print(f"idle {secs:.0f} s on about:blank, fresh profile: {len(seen)} remote peer(s)")
 for (kind, ip, port), (t, who) in sorted(seen.items(), key=lambda x: x[1][0]):

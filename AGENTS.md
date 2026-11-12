@@ -23,7 +23,9 @@ in `docs/feature-map.md`, module reuse in `docs/porting.md`, state in
 - `../novabrowser/novabrowser` is the reference implementation: read the matching module
   before porting a feature; keep its behaviour, names and messages unless
   `docs/feature-map.md` says otherwise. Never edit it from this repo.
-- Copied files keep `// from novabrowser <commit> src/<file>` on line 1.
+- Logic shared with novabrowser lives in `nova-core`, never copied. Modules ported
+  from novabrowser are WebKit rewrites and carry no source header; a file copied
+  verbatim keeps `// from novabrowser <commit> src/<file>` on line 1.
 - `../qutebrowser` (if present) is read-only reference (GPL-3.0).
 - Anything injected into every frame gets a Speedometer A/B before it ships.
 - No CDP here: automated checks use the IPC socket (`--cmd`, `--query`) and

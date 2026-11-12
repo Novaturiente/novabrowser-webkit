@@ -11,7 +11,7 @@ use nova_core::urlmatch::UrlPattern;
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use webkit_web_process_extension6::glib::prelude::ToVariant;
+use webkit_web_process_extension6::glib::prelude::{ObjectExt, ToVariant};
 use webkit_web_process_extension6::glib::translate::{FromGlibPtrNone, ToGlibPtr};
 use webkit_web_process_extension6::{glib, URIRequest, URIResponse, UserMessage, WebPage, WebProcessExtension};
 
@@ -61,6 +61,11 @@ pub unsafe extern "C" fn webkit_web_process_extension_initialize_with_user_data(
         }
     });
     ext.connect_page_created(|_, page| {
+        let id = page.id();
+        // try_with: a page disposed during process teardown may outlive the thread-local
+        page.add_weak_ref_notify_local(move || {
+            let _ = PAGES.try_with(|p| p.borrow_mut().remove(&id));
+        });
         page.connect_user_message_received(on_page_message);
         connect_send_request(page);
     });
