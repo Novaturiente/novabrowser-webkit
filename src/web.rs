@@ -44,8 +44,11 @@ const FOCUS_JS: &str = r#"(() => {
   const ed = (e) => !!e && (e.isContentEditable || (e.tagName === 'INPUT' && !/^(button|checkbox|color|file|hidden|image|radio|range|reset|submit)$/i.test(e.type)) || e.tagName === 'TEXTAREA' || e.tagName === 'SELECT');
   const send = (s) => { try { webkit.messageHandlers.nova.postMessage(s); } catch (_) {} };
   let last = null;
-  const report = () => { let a = document.activeElement; while (a && a.shadowRoot && a.shadowRoot.activeElement) a = a.shadowRoot.activeElement; const v = ed(a); if (v !== last) { last = v; send('focus ' + (v ? 1 : 0)); } };
-  addEventListener('focusin', report, true);
+  const report = (force) => { let a = document.activeElement; while (a && a.shadowRoot && a.shadowRoot.activeElement) a = a.shadowRoot.activeElement; const v = ed(a); if (force === true || v !== last) { last = v; send('focus ' + (v ? 1 : 0)); } };
+  // forced: after Esc the mode is normal but the field keeps focus, so `last` would hide
+  // a click on it (no focusin) or on another field
+  addEventListener('focusin', () => report(true), true);
+  addEventListener('pointerdown', () => setTimeout(() => report(true), 0), true);
   addEventListener('focusout', () => setTimeout(report, 0), true);
   addEventListener('pageshow', () => { last = null; report(); });
 })();"#;

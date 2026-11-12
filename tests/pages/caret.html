@@ -1,0 +1,8 @@
+<!doctype html><meta charset=utf-8><title>caret</title>
+<!-- Caret checks (tests/caret.sh): the title shows the focused field's selection after focus. -->
+<style>input,textarea{display:block;box-sizing:border-box;width:100%;height:28vh;margin:0 0 2vh}</style>
+<input id=a value="hello world"> <textarea id=b>some text</textarea> <input id=c value="third">
+<script>
+for (const e of document.querySelectorAll("input,textarea"))
+  e.addEventListener("focus", () => setTimeout(() => (document.title = `${e.id}:${e.selectionStart}-${e.selectionEnd}`), 50));
+</script>

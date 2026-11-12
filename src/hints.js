@@ -3,6 +3,13 @@
 // search and visibility are ported from qutebrowser javascript/webelem.js.
 (() => {
   const H = (globalThis.__nova = {});
+  // script focus() of a text field with no saved caret selects all, caret at the start
+  // (WebKit setDefaultSelectionAfterFocus): put the caret at the end instead
+  const caretEnd = (e) => {
+    try {
+      if (e.selectionStart === 0 && e.selectionEnd === e.value.length) e.setSelectionRange(e.value.length, e.value.length);
+    } catch (_) {} // types without a selection (email, number) throw
+  };
   let elems = []; // [elem, frame offset {left, top}]
   let host = null;
   let labels = [];
@@ -127,7 +134,10 @@
     const [e, off] = elems[i];
     const r = e.getClientRects()[0] || e.getBoundingClientRect();
     const x = r.left + Math.min(r.width / 2, 20), y = r.top + r.height / 2;
-    if (e.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(e.tagName)) e.focus();
+    if (e.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(e.tagName)) {
+      e.focus();
+      caretEnd(e);
+    }
     for (const t of ["pointerover", "mouseover", "pointerdown", "mousedown"]) fire(e, t, x, y, ctrl);
     if (e.focus && !e.isContentEditable) try { e.focus({ preventScroll: true }); } catch (_) {}
     for (const t of ["pointerup", "mouseup"]) fire(e, t, x, y, ctrl);
@@ -148,6 +158,7 @@
   H.focusFirst = () => {
     if (!elems.length) return false;
     elems[0][0].focus();
+    caretEnd(elems[0][0]);
     return true;
   };
 
