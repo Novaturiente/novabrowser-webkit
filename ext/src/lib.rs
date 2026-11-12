@@ -4,11 +4,14 @@
 //! - init data / context message `cfg`: `{"engine": path, "whitelist": [..], "excludes": [..]}`
 //! - page message `nav`: `{"url": main-frame URL, "block": bool, "headers": [[k, v]..]}`,
 //!   sent before the navigation goes ahead, so it arrives first (same IPC connection).
+//! - page message `mem`: replied with `(rss_mb, gpu_mb)` of this web process (GPU =
+//!   DRM buffers from /proc/self/fdinfo, which are not in RSS).
 use adblock::{request::Request, Engine};
 use nova_core::urlmatch::UrlPattern;
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use webkit_web_process_extension6::glib::prelude::ToVariant;
 use webkit_web_process_extension6::glib::translate::{FromGlibPtrNone, ToGlibPtr};
 use webkit_web_process_extension6::{glib, URIRequest, URIResponse, UserMessage, WebPage, WebProcessExtension};
 
@@ -93,6 +96,17 @@ fn set_cfg(json: &str) {
 }
 
 fn on_page_message(page: &WebPage, m: &UserMessage) -> bool {
+    if m.name().as_deref() == Some("mem") {
+        let rss = std::fs::read_to_string("/proc/self/status").map(|s| status_kib(&s, "VmRSS:")).unwrap_or(0);
+        let gpu = gpu_kib(
+            std::fs::read_dir("/proc/self/fdinfo")
+                .into_iter()
+                .flatten()
+                .filter_map(|e| std::fs::read_to_string(e.ok()?.path()).ok()),
+        );
+        m.send_reply(&UserMessage::new("mem", Some(&(rss >> 10, gpu >> 10).to_variant())));
+        return true;
+    }
     if m.name().as_deref() != Some("nav") {
         return false;
     }
@@ -200,6 +214,41 @@ fn on_send_request(page: &WebPage, req: &URIRequest, redirected: Option<&URIResp
     false
 }
 
+/// `VmRSS:     123 kB` style line of /proc/<pid>/status, in KiB.
+fn status_kib(status: &str, key: &str) -> u64 {
+    status.lines().find_map(|l| l.strip_prefix(key)?.split_whitespace().next()?.parse().ok()).unwrap_or(0)
+}
+
+/// KiB of DRM buffers in fdinfo texts: `drm-total-<region>` summed once per `drm-client-id`
+/// (dup'd fds of one client repeat the same numbers).
+fn gpu_kib(fdinfos: impl Iterator<Item = String>) -> u64 {
+    let mut clients = HashMap::new();
+    for f in fdinfos {
+        let mut id = None;
+        let mut kib = 0;
+        for l in f.lines() {
+            let mut w = l.split_whitespace();
+            match w.next() {
+                Some("drm-client-id:") => id = w.next().map(str::to_string),
+                Some(k) if k.starts_with("drm-total-") => {
+                    let n: u64 = w.next().and_then(|n| n.parse().ok()).unwrap_or(0);
+                    kib += match w.next() {
+                        Some("KiB") => n,
+                        Some("MiB") => n << 10,
+                        Some("GiB") => n << 20,
+                        _ => n >> 10,
+                    };
+                }
+                _ => {}
+            }
+        }
+        if let Some(id) = id {
+            clients.insert(id, kib);
+        }
+    }
+    clients.values().sum()
+}
+
 fn should_block(url: &str, source: &str, kind: &str) -> bool {
     if CFG.with_borrow(|c| c.whitelist.iter().any(|p| p.matches(url))) {
         return false;
@@ -221,6 +270,15 @@ mod tests {
         assert_eq!(guess_type("https://x/p", "image/webp,*/*"), "image");
         assert_eq!(guess_type("https://x/f", "text/html,application/xhtml+xml"), "subdocument");
         assert_eq!(guess_type("https://x/api", "*/*"), "other");
+    }
+
+    #[test]
+    fn memory_parse() {
+        assert_eq!(status_kib("Name:\tx\nVmRSS:\t  2048 kB\n", "VmRSS:"), 2048);
+        let a = "pos:\t0\ndrm-driver:\ti915\ndrm-client-id:\t7\ndrm-total-system0:\t674332 KiB\ndrm-total-stolen-local0:\t0\n";
+        let b = "drm-client-id:\t8\ndrm-total-system0:\t10 MiB\n";
+        let fds = [a, a, b, "pos:\t0\nflags:\t02\n"].map(str::to_string);
+        assert_eq!(gpu_kib(fds.into_iter()), 674332 + 10240);
     }
 
     #[test]

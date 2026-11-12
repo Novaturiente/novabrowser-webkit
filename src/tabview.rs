@@ -118,6 +118,7 @@ pub fn connect(view: &WebView) {
     });
     view.connect_web_process_terminated(|v, reason| {
         let why = match reason {
+            _ if window::take_oom(v) => "out of memory",
             WebProcessTerminationReason::ExceededMemoryLimit => "out of memory",
             WebProcessTerminationReason::TerminatedByApi => "killed",
             _ => "crashed",

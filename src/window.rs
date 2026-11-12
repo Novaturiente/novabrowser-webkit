@@ -8,11 +8,11 @@ use gtk::prelude::*;
 use gtk::glib;
 use serde_json::{json, Map, Value};
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::time::Duration;
 use webkit6::prelude::*;
-use webkit6::WebView;
+use webkit6::{UserMessage, WebView};
 
 pub use nova_core::host::js_str;
 
@@ -1793,6 +1793,7 @@ const BUSY_JS: &str = "JSON.stringify([...document.querySelectorAll('video,audio
 pub fn start_hibernation() {
     glib::timeout_add_seconds_local(60, || {
         hibernate_idle();
+        memory_watch();
         glib::ControlFlow::Continue
     });
 }
@@ -1825,6 +1826,63 @@ fn hibernate_idle() {
         web::eval_world(&v, BUSY_JS, move |r| {
             if r == Some(Value::Bool(false)) {
                 in_slot(slot, || hibernate_view(&v2, false));
+            }
+        });
+    }
+}
+
+/// GPU buffers (MB) that get a background tab hibernated after `HEAVY_HIDDEN`, before
+/// `tabs.hibernate_after`: WebKit keeps a hidden page's tiles (Gemini: 2 GB at 100 MB RSS).
+const HEAVY_GPU_MB: u64 = 1024;
+const HEAVY_HIDDEN: Duration = Duration::from_secs(120);
+/// RSS + GPU (MB) that kills a tab's web process, active or not. WebKit's own limit
+/// (web.rs) counts only RSS, so GPU growth went on to 9.9 GB RAM + 12.5 GB swap.
+const KILL_MB: u64 = 4096;
+
+thread_local! {
+    /// Views whose web process `memory_watch` killed: the crash page says "out of memory".
+    static OOM: RefCell<HashSet<usize>> = RefCell::new(HashSet::new());
+}
+
+/// True (once) if `memory_watch` killed this view's web process.
+pub fn take_oom(view: &WebView) -> bool {
+    OOM.with_borrow_mut(|o| o.remove(&web::id(view)))
+}
+
+/// Once a minute: ask each loaded tab's web process for its RSS + GPU use (extension
+/// `mem` message); kill it over `KILL_MB`, hibernate a heavy background tab early.
+fn memory_watch() {
+    let tabs: Vec<(usize, WebView, bool)> = WINS.with_borrow(|w| {
+        w.iter()
+            .enumerate()
+            .filter(|(_, s)| s.window.is_some())
+            .flat_map(|(slot, s)| {
+                s.tabs.iter().enumerate().filter_map(move |(i, t)| {
+                    let hidden = i != s.active
+                        && !t.keep
+                        && !t.loading
+                        && !t.playing
+                        && t.seen.elapsed() >= HEAVY_HIDDEN;
+                    let v = t.view.clone().filter(|_| t.crashed.is_none() && !web::is_internal(&t.url))?;
+                    Some((slot, v, hidden))
+                })
+            })
+            .collect()
+    });
+    for (slot, v, hidden) in tabs {
+        let v2 = v.clone();
+        v.send_message_to_page(&UserMessage::new("mem", None), None::<&gtk::gio::Cancellable>, move |r| {
+            let Some((rss, gpu)) = r.ok().and_then(|m| m.parameters()?.get::<(u64, u64)>()) else { return };
+            if rss + gpu > KILL_MB {
+                OOM.with_borrow_mut(|o| o.insert(web::id(&v2)));
+                v2.terminate_web_process();
+            } else if hidden && gpu > HEAVY_GPU_MB {
+                let v3 = v2.clone();
+                web::eval_world(&v2, BUSY_JS, move |r| {
+                    if r == Some(Value::Bool(false)) {
+                        in_slot(slot, || hibernate_view(&v3, false));
+                    }
+                });
             }
         });
     }

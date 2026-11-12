@@ -1,0 +1,18 @@
+<!doctype html><meta charset=utf-8><title>gpu-hog</title>
+<!-- Holds ?mb=N MB of WebGL textures (GPU buffers, not RSS) for the memory watchdog check. -->
+<canvas id=c width=64 height=64></canvas><p id=o></p>
+<script>
+const mb = +new URLSearchParams(location.search).get("mb") || 1500;
+const gl = document.getElementById("c").getContext("webgl");
+const px = new Uint8Array(2048 * 2048 * 4); // 16 MB per texture
+const keep = [];
+for (let i = 0; i < mb / 16; i++) {
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 2048, 2048, 0, gl.RGBA, gl.UNSIGNED_BYTE, px);
+  keep.push(t);
+}
+gl.finish();
+document.title = "gpu-hog " + keep.length * 16 + " MB";
+document.getElementById("o").textContent = document.title;
+</script>
