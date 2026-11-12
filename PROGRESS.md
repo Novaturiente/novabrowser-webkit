@@ -19,7 +19,7 @@ Tests drive the browser over IPC: `--cmd`, `--query state`, `--key <keys>`.
 - **Phase:** 1–8 and 10 built and checked by S/F/P where IPC can reach; user's manual pass (`docs/manual-test.md`) next.
 - **Next action:** user runs `docs/manual-test.md`; watch EEC Home / Gemini on `webkitgtk-6.0-nova` 2.54.2-3 (`nb-memlog` running) and drop patch 0000 when 2.54.3 ships. Released 0.1.8 (2026-10-30). D7 duty now live: rebuild `webkitgtk-6.0-nova-bin` within 3 days of each WebKitGTK release/advisory. C5 (aria2) and C6 done in the CEF repo (`main` 650078a, not pushed).
 - **Blockers:** none.
-- **2026-11-12:** jank fix 8.25/8.26 built, not released; user to confirm the focus-in stutter is gone on a build with nova-core `555f624`.
+- **2026-11-12:** jank fix 8.25/8.26 released in 0.1.11; user to confirm the focus-in stutter is gone on a build with nova-core `555f624`.
 
 ---
 
@@ -278,6 +278,8 @@ Newest first. Settled — don't reopen without new evidence.
 ## Session log
 
 Newest first.
+
+- 2026-11-12 (IST, 14:06) — Released 0.1.11 (8.25 off-thread session autosave, saves only on tab changes; 8.26 hung-page grace + re-ask). Workspace tests passed (13 browser, 2 extension); release.sh clean source package build and checks passed; GitHub v0.1.11 asset published; -bin package built from the uploaded asset. Both AUR updates pushed and remote hashes verified: novabrowser-webkit 1d1f242, novabrowser-webkit-bin adc2b41. System installation unchanged. User has not yet confirmed the stutter is gone; 8.27 still open.
 
 - 2026-11-12 (IST, 12:45) — Jank on focus-in (8.25). Live Work profile: no memory growth (UI 64 MB, web processes < 300 MB, memlog flat over 11 days). UI thread sampled every 10 ms for 60 s: busy ≤ 25 ms, no disk waits. `perf` needs `ptrace_scope=0` (user ran sudo) and refuses `-g`; flat profile: DigitalOcean tab's web process 61% of samples (53% `libwebkitgtk`, 2.5% JSC), threaded compositor 15%, UI 14%. novahome `~/wk-build` (symbols per BuildID) is gone, so WebKit frames can't be named. Compared Epiphany (`fe86b06`): defaults mostly; session saved off-thread on load/tab changes only; hang dialog after 10 s grace. Ported both (nova-core `555f624`, pin bumped). Build + 15 workspace tests + 92 nova-core tests pass; live checks in a throwaway data dir as in 8.25/8.26. Found 8.27. Not released.
 
