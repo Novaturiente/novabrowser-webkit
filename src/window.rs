@@ -1790,11 +1790,20 @@ pub fn focus_active() {
 const BUSY_JS: &str = "JSON.stringify([...document.querySelectorAll('video,audio')].some(m=>!m.paused&&!m.ended)||\
 [...document.querySelectorAll('input:not([type=hidden]),textarea')].some(e=>e.value!==e.defaultValue))";
 
-/// Once a minute: unload background tabs idle for `tabs.hibernate_after` minutes.
+/// Once a minute: unload background tabs idle for `tabs.hibernate_after` minutes and run
+/// `memory_watch`; every 10 s too while the system is low on memory (spikes take ~1 min).
 pub fn start_hibernation() {
-    glib::timeout_add_seconds_local(60, || {
-        hibernate_idle();
-        memory_watch();
+    let mut tick = 0u32;
+    glib::timeout_add_seconds_local(10, move || {
+        tick += 1;
+        let minute = tick % 6 == 0;
+        let danger = std::fs::read_to_string("/proc/meminfo").is_ok_and(|m| low_memory(&m));
+        if minute {
+            hibernate_idle();
+        }
+        if minute || danger {
+            memory_watch(danger);
+        }
         glib::ControlFlow::Continue
     });
 }
@@ -1836,9 +1845,32 @@ fn hibernate_idle() {
 /// `tabs.hibernate_after`: WebKit keeps a hidden page's tiles (Gemini: 2 GB at 100 MB RSS).
 const HEAVY_GPU_MB: u64 = 1024;
 const HEAVY_HIDDEN: Duration = Duration::from_secs(120);
-/// RSS + GPU (MB) that kills a tab's web process, active or not. WebKit's own limit
-/// (web.rs) counts only RSS, so GPU growth went on to 9.9 GB RAM + 12.5 GB swap.
-const KILL_MB: u64 = 4096;
+/// RSS + GPU (MB) that kills a tab's web process even when the system is fine (runaway).
+/// Below it a tab dies only under `low_memory`: Gemini's GPU spikes (4.8 GB) pass by
+/// themselves, but one went on to 9.9 GB RAM + 12.5 GB swap and oomd took the session.
+const KILL_MB: u64 = 8192;
+/// System danger, well before systemd-oomd's 90% swap kill: swap use over 75% or
+/// MemAvailable under 1 GB.
+const DANGER_SWAP_PCT: u64 = 75;
+const DANGER_AVAIL_KB: u64 = 1 << 20;
+
+/// True if `/proc/meminfo` text shows the system near an oomd session kill.
+fn low_memory(meminfo: &str) -> bool {
+    let kb = |key: &str| {
+        meminfo
+            .lines()
+            .find_map(|l| l.strip_prefix(key)?.strip_prefix(':')?.split_whitespace().next()?.parse::<u64>().ok())
+    };
+    let (Some(avail), Some(total), Some(free)) = (kb("MemAvailable"), kb("SwapTotal"), kb("SwapFree")) else {
+        return false;
+    };
+    avail < DANGER_AVAIL_KB || (total > 0 && (total - free) * 100 > total * DANGER_SWAP_PCT)
+}
+
+fn kill_oom(v: &WebView) {
+    OOM.with_borrow_mut(|o| o.insert(web::id(v)));
+    v.terminate_web_process();
+}
 
 thread_local! {
     /// Views whose web process `memory_watch` killed: the crash page says "out of memory".
@@ -1850,9 +1882,10 @@ pub fn take_oom(view: &WebView) -> bool {
     OOM.with_borrow_mut(|o| o.remove(&web::id(view)))
 }
 
-/// Once a minute: ask each loaded tab's web process for its RSS + GPU use (extension
-/// `mem` message); kill it over `KILL_MB`, hibernate a heavy background tab early.
-fn memory_watch() {
+/// Ask each loaded tab's web process for its RSS + GPU use (extension `mem` message);
+/// kill it over `KILL_MB`, kill the biggest tab when `danger`, hibernate a heavy
+/// background tab early.
+fn memory_watch(danger: bool) {
     let tabs: Vec<(usize, WebView, bool)> = WINS.with_borrow(|w| {
         w.iter()
             .enumerate()
@@ -1870,13 +1903,29 @@ fn memory_watch() {
             })
             .collect()
     });
+    // (replies still due, biggest tab so far): the biggest dies once all replied
+    let worst: Rc<RefCell<(usize, Option<(u64, WebView)>)>> = Rc::new(RefCell::new((tabs.len(), None)));
     for (slot, v, hidden) in tabs {
         let v2 = v.clone();
+        let worst = worst.clone();
         v.send_message_to_page(&UserMessage::new("mem", None), None::<&gtk::gio::Cancellable>, move |r| {
-            let Some((rss, gpu)) = r.ok().and_then(|m| m.parameters()?.get::<(u64, u64)>()) else { return };
+            let reply = r.ok().and_then(|m| m.parameters()?.get::<(u64, u64)>());
+            let mut w = worst.borrow_mut();
+            w.0 -= 1;
+            if let (true, Some((rss, gpu))) = (danger, reply) {
+                if w.1.as_ref().is_none_or(|(mb, _)| rss + gpu > *mb) {
+                    w.1 = Some((rss + gpu, v2.clone()));
+                }
+            }
+            if w.0 == 0 {
+                if let Some((_, big)) = w.1.take() {
+                    kill_oom(&big);
+                }
+            }
+            drop(w);
+            let Some((rss, gpu)) = reply else { return };
             if rss + gpu > KILL_MB {
-                OOM.with_borrow_mut(|o| o.insert(web::id(&v2)));
-                v2.terminate_web_process();
+                kill_oom(&v2);
             } else if hidden && gpu > HEAVY_GPU_MB {
                 let v3 = v2.clone();
                 web::eval_world(&v2, BUSY_JS, move |r| {
@@ -2092,7 +2141,20 @@ fn ui_message(text: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::{load_error_text, move_target, new_tab, related_slot};
+    use super::{load_error_text, low_memory, move_target, new_tab, related_slot};
+
+    #[test]
+    fn low_memory_thresholds() {
+        let m = |avail: u64, total: u64, free: u64| {
+            format!("MemTotal: 15959040 kB\nMemAvailable: {avail} kB\nSwapTotal: {total} kB\nSwapFree: {free} kB\n")
+        };
+        assert!(!low_memory(&m(10_000_000, 16_000_000, 13_000_000)), "today's healthy laptop");
+        assert!(low_memory(&m(900_000, 16_000_000, 13_000_000)), "MemAvailable under 1 GB");
+        assert!(low_memory(&m(5_000_000, 16_000_000, 3_000_000)), "swap 81% used");
+        assert!(!low_memory(&m(5_000_000, 16_000_000, 4_100_000)), "swap 74% used");
+        assert!(!low_memory(&m(5_000_000, 0, 0)), "no swap");
+        assert!(!low_memory("garbage"), "unreadable");
+    }
 
     #[test]
     fn related_tabs_stack_after_opener() {

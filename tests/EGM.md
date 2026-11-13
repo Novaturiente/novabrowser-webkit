@@ -12,7 +12,7 @@ holds local HTML fixtures, served on `127.0.0.1` or used as `data:` URLs.
 | `features.sh` | Phase 8 features (restore, hibernation, profiles, import, …) |
 | `passwords.sh` | Phase 10 passwords with the `pass` backend |
 | `caret.sh` | `gi` and mouse-click caret position |
-| `memwatch.sh` | `memory_watch`: 1.5 GB hidden tab hibernates, 4.4 GB tab killed |
+| `memwatch.sh` | `memory_watch`: 1.5 GB hidden tab hibernates, 4.4 GB tab survives on a healthy system |
 | `idle-net.py` | Remote network peers while idle on `about:blank` |
 
 ## Interface
@@ -26,7 +26,7 @@ holds local HTML fixtures, served on `127.0.0.1` or used as `data:` URLs.
 - End the browser with `stop`: it asserts exit code 0 within 10 s.
 - A `panicked at` line in `$tmp/stderr` makes `finish` fail; the exit code is the fail count. `smoke.sh` uses neither `finish` nor `serve`: it does its own panic grep, summary and `exit $fails`, and starts its HTTP servers inline.
 - `serve` picks a random port in 20000-39999 without a collision check.
-- `memwatch.sh` sizes (1.5 GB, 4.4 GB) are chosen to cross the real limits in `src/window.rs` (`HEAVY_GPU_MB = 1024` after 120 s hidden; `KILL_MB = 4096` RSS + GPU).
+- `memwatch.sh` sizes (1.5 GB, 4.4 GB) are chosen to cross the real limits in `src/window.rs` (`HEAVY_GPU_MB = 1024` after 120 s hidden; `KILL_MB = 8192` RSS + GPU, not crossed: the 4.4 GB tab must survive; the kill paths are not run, as 8 GB or low system memory would hit the user's own browser too).
 - The crash test in `smoke.sh` kills only `WebKitWebProcess` children of the test instance (matched by walking `/proc` ppid).
 - `passwords.sh` exits 0 with `skip` when `pass`, `gpg` or `openssl` is missing.
 - `caret.sh` needs `ydotool` with `ydotoold`, Hyprland (`hyprctl`, `jq`) and scale 1.

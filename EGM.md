@@ -29,7 +29,7 @@ matching) comes from the external `nova-core` crate at a pinned git rev. Design:
 - Both crates pin the same `nova-core` rev; bump them together.
 - The installed extension path `/usr/lib/novabrowser-webkit/libnovabrowser_webkit_ext.so` is what the binary searches; packaging must keep it.
 - Every profile (`--profile`) has its own data dir and IPC socket, except the adblock lists and `engine.dat`, which all profiles share (`src/adblock.rs:37-40`). Tests and spikes use throwaway XDG dirs and never the user's real profile.
-- Two memory limits: WebKit's per-process cap of 3072 MB RSS (`src/web.rs:89-92`), and `memory_watch` in `src/window.rs` (hibernate hidden tabs over 1024 MB GPU after 120 s; kill tabs over 4096 MB RSS + GPU).
+- Two memory limits: WebKit's per-process cap of 3072 MB RSS (`src/web.rs:89-92`), and `memory_watch` in `src/window.rs` (hibernate hidden tabs over 1024 MB GPU after 120 s; kill tabs over 8192 MB RSS + GPU, or the biggest tab when swap is over 75% used or MemAvailable is under 1 GB).
 - No CDP: automated checks use `--cmd` / `--query` / `--key` and real keys.
 - Anything injected into every frame gets a Speedometer A/B before it ships.
 - Logic shared with novabrowser lives in `nova-core`, never copied; ported modules are WebKit rewrites without a source header. Only a file copied verbatim keeps `// from novabrowser <commit> src/<file>` on line 1 (AGENTS.md).
