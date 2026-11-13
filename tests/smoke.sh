@@ -27,6 +27,15 @@ n=$(ntabs); [ "$n" = 2 ] && ok "tab-close ($n tabs left)" || fail "tab-close: $(
 "$bin" --cmd "set theme light" >/dev/null
 grep -q '"theme": *"light"' "$XDG_CONFIG_HOME/$app/autoconfig.json" 2>/dev/null \
     && ok ":set persists to autoconfig.json" || fail ":set persistence"
+
+# backticks: the command parser drops quotes
+scheme='data:text/html,<script>const%20m=matchMedia(`(prefers-color-scheme:dark)`),f=()=>document.title=`scheme-`+(m.matches?`dark`:`light`);f();m.onchange=f</script>'
+"$bin" --cmd "open -t $scheme" >/dev/null
+"$bin" --cmd "set colors.webpage.preferred_color_scheme dark" >/dev/null
+wait_for '"title":"scheme-dark"' 5 && ok "preferred_color_scheme dark reaches the page" || fail "scheme dark: $(q)"
+"$bin" --cmd "set colors.webpage.preferred_color_scheme light" >/dev/null
+wait_for '"title":"scheme-light"' 5 && ok "preferred_color_scheme light reaches the page" || fail "scheme light: $(q)"
+"$bin" --cmd "tab-close" >/dev/null
 "$bin" --cmd "set auto_save.session true" >/dev/null
 "$bin" --cmd "set chromium.args '[]'" >/dev/null
 wait_for 'chromium.args only applies to the CEF edition' 5 && ok ":set refuses CEF-only settings" || fail "chromium.*: $(q)"

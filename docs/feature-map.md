@@ -120,7 +120,7 @@ Verdict: **same** (direct equivalent), **better** (WebKit does more),
 | Hyperlink auditing off | `--no-pings` | `enable-hyperlink-auditing` false | same |
 | No calls to Google with no page open | disabled features, prefs, CEF privacy patch | WebKitGTK has no Safe Browsing, sign-in or component updater [Likely]; set `enable-dns-prefetching` false; verify with a network capture | better (no patch) |
 | Per-site dark mode (`colors.webpage.darkmode.enabled`, excludes, `dark-toggle`, `darkmode_excludes` file) | `WebContentsForceDark` + CDP `Emulation.setAutoDarkModeOverride` per tab | D6: per-view user style `-apple-color-filter: apple-invert-lightness()` (feature `ColorFilter`), native-dark pages skipped | same idea (paint-time colour filter), images untouched |
-| `colors.webpage.preferred_color_scheme` | `blink-settings=preferredColorScheme` | GTK dark/light preference for the app (`gtk-application-prefer-dark-theme`) [Likely]; global only | same globally |
+| `colors.webpage.preferred_color_scheme` | `blink-settings=preferredColorScheme` | GTK dark/light preference for the app (`gtk-application-prefer-dark-theme`, `web::apply_config`); global only | same globally |
 | Spellcheck (`spellcheck.languages`) | Chromium prefs + dictionary download | `WebContext.set_spell_checking_enabled/languages` (Enchant, system dictionaries) | same |
 | Autofill off (card-save crash) | prefs | not needed (WebKitGTK has no autofill UI) | n/a |
 

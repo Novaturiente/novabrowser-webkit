@@ -557,7 +557,7 @@ Background shown before a page paints. New tabs.
 
 ### `colors.webpage.preferred_color_scheme`
 
-What `prefers-color-scheme` reports to pages. Not wired up in the WebKit edition yet: no effect.
+What `prefers-color-scheme` reports to pages, so sites with a dark theme use it. `auto` follows the desktop. Applies to every page (WebKit sets it app-wide) and also switches the browser's GTK widgets.
 
 - Type: `auto` / `light` / `dark`
 - Default: `"\"auto\""`
