@@ -1,0 +1,51 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>w18 start</title>
+<pre id="out"></pre>
+<script>
+// Cross-origin CORS fetches, first without and then with a pass-through service worker.
+const out = [];
+const log = (s) => { out.push(s); document.getElementById("out").textContent = out.join("\n"); document.title = out.join(" | "); };
+const URL_GET = "https://httpbin.org/get";
+const URL_POST = "https://httpbin.org/post";
+
+function xhr(method, url, body) {
+  return new Promise((ok, bad) => {
+    const x = new XMLHttpRequest();
+    x.open(method, url);
+    if (body) x.setRequestHeader("Content-Type", "application/json");
+    x.onload = () => ok({ status: x.status });
+    x.onerror = () => bad(new Error("xhr error"));
+    x.send(body);
+  });
+}
+
+async function probe(tag) {
+  for (const [name, p] of [
+    ["get", () => fetch(URL_GET)],
+    ["get-wait", () => fetch(URL_GET + "?wait")],
+    ["xhr-get", () => xhr("GET", URL_GET)],
+    ["xhr-post", () => xhr("POST", URL_POST + "?wait", "{}")],
+    // api.py: CORS without sec-gpc in Allow-Headers, like data.dataforseo.com
+    ["api-xhr", () => xhr("GET", "http://127.0.0.1:8766/x")],
+    ["post-json", () => fetch(URL_POST, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })],
+    ["post-text", () => fetch(URL_POST, { method: "POST", body: "x" })],
+  ]) {
+    try { const r = await p(); log(`${tag} ${name} ${r.status}`); }
+    catch (e) { log(`${tag} ${name} ERR ${e.message}`); }
+  }
+}
+
+(async () => {
+  const sw = navigator.serviceWorker;
+  log(`controlled=${!!sw.controller}`);
+  await probe(sw.controller ? "sw" : "nosw");
+  if (!sw.controller) {
+    await sw.register("sw.js");
+    await new Promise((r) => sw.addEventListener("controllerchange", r, { once: true }));
+    log("controlled=true");
+    await probe("sw");
+  }
+  log("done");
+})();
+</script>

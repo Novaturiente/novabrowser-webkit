@@ -29,7 +29,7 @@ messages.
 - Adblock never blocks the main frame and applies only when `PageState.block` is true.
 - `should_block` matches the whitelist against the request URL, not the page URL, and always passes method `"get"` to adblock (`lib.rs:258-263`).
 - The HTTPS upgrade applies only to GET/HEAD (or no method) and honours excludes via `nova_core::net::https_upgrade_with`.
-- Custom headers are replaced on every request, including redirects, after the upgrade.
+- Custom headers are replaced on every request, including redirects, after the upgrade, except CORS requests (an `Origin` header other than the target's origin, `is_cors`): a service worker re-sends them with these as author headers and the server's preflight refuses them.
 - A page's `PAGES` entry is removed when the `WebPage` is disposed (weak-ref notify set in `connect_page_created`; `try_with` because disposal can run during thread teardown). The trampoline's `Box::new(())` user data is zero-sized, so it allocates nothing.
 - `redirected` is NULL for non-redirect requests; the trampoline checks it.
 - `mem` reply is `(rss_kib >> 10, gpu_kib >> 10)`.

@@ -165,7 +165,7 @@ HTTPS-only
 
 Cookies, headers, network privacy
 - [m] 7.10 `content.cookies.accept` via CookieManager, ITP
-- [m] 7.11 Custom headers / DNT in `send-request` (page-level values: shortcut, see ext)
+- [m] 7.11 Custom headers / DNT in `send-request` (page-level values: shortcut, see ext); skipped on cross-origin CORS requests (2026-11-14, DataForSEO login fix, U: `cors_requests`)
 - [~] 7.12 Accept-Language, autoplay via `media_playback_requires_user_gesture`; hyperlink auditing / DNS prefetch setters are deprecated no-ops in 2.50+ [m]
 - [x] 7.13 Idle network capture (`tests/idle-net.py`, 2026-10-29): fresh profile 90 s on about:blank = only `curl` fetching the adblock lists; second start with lists cached = 0 peers. Polls /proc every 0.1 s (no root); DNS via systemd-resolved not visible
 
@@ -278,6 +278,8 @@ Newest first. Settled — don't reopen without new evidence.
 ## Session log
 
 Newest first.
+
+- 2026-11-14 (IST, 23:00) — Fix: DataForSEO sign-up/sign-in failed with "Something went wrong" (works in Zen and Epiphany). Cause: the extension adds `content.headers.custom` (`Sec-GPC: 1`) to the page's request in `send-request`; on a page controlled by a service worker (Angular ngsw) the worker re-sends that request with the header as an author header, so a cross-origin request needs a CORS preflight, and data.dataforseo.com doesn't allow `sec-gpc` → `TypeError(Load failed)` → ngsw's fake 504. Bisected in a throwaway profile via `/ngsw/state`: ITP, user agent, adblock and cookies ruled out; a dummy extension cleared it. Fix in `ext/src/lib.rs`: skip custom headers when `Origin` differs from the target origin (`is_cors`). Checked: `cargo test -p novabrowser-webkit-ext` 4 passed; `spikes/w18-sw-cors` (pass-through SW + `api.py` CORS server without `sec-gpc`) gives `api-xhr ERR` with the 0.1.15 extension and `api-xhr 200` with the fix, server saw no `sec-gpc` preflight. Not yet checked on the real DataForSEO login (needs the user's account). Trade-off: cross-origin CORS fetches no longer carry `Sec-GPC`.
 
 - 2026-11-14 (IST, 19:55) — Released 0.1.15 (f181395: watchdog danger-kill floor a511d30). Workspace tests passed (14 browser, 3 extension); release.sh clean source build and `check()` passed; GitHub v0.1.15 asset published; -bin package built from the uploaded asset (sha256 Passed). Both AUR updates pushed and remote hashes verified: novabrowser-webkit 1a4d640, novabrowser-webkit-bin 7008b83. System installation unchanged. Not run for this tag: smoke.sh, features.sh, memwatch.sh.
 - 2026-11-14 (IST) — Fix: Work-profile Gmail killed back to back as "out of memory". Cause: system swap sat near the 75% `low_memory` line (11 GB used, mostly Zen + other web processes) and `memory_watch` killed the biggest tab every 10 s, Gmail at ~900 MB, which freed nothing. Danger kill now needs the tab at `DANGER_MIN_MB` (2048) or more. Release build + `low_memory` test passed; not checked live under real swap pressure.

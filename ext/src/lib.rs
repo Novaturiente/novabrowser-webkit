@@ -212,11 +212,20 @@ fn on_send_request(page: &WebPage, req: &URIRequest, redirected: Option<&URIResp
         }
     }
     if let Some(h) = headers {
-        for (k, v) in &st.headers {
-            h.replace(k, v);
+        // a service worker re-sends the page's request with these as author headers, so a
+        // CORS request would need a preflight the server refuses (DataForSEO login): skip it
+        if !is_cors(h.one("Origin").as_deref(), &url) {
+            for (k, v) in &st.headers {
+                h.replace(k, v);
+            }
         }
     }
     false
+}
+
+/// WebCore sets `Origin` on CORS requests; a value other than the target's own origin means cross-origin.
+fn is_cors(origin: Option<&str>, url: &str) -> bool {
+    origin.is_some_and(|o| nova_core::net::origin(url).as_deref().map(|t| t.trim_end_matches('/')) != Some(o))
 }
 
 /// `VmRSS:     123 kB` style line of /proc/<pid>/status, in KiB.
@@ -275,6 +284,14 @@ mod tests {
         assert_eq!(guess_type("https://x/p", "image/webp,*/*"), "image");
         assert_eq!(guess_type("https://x/f", "text/html,application/xhtml+xml"), "subdocument");
         assert_eq!(guess_type("https://x/api", "*/*"), "other");
+    }
+
+    #[test]
+    fn cors_requests() {
+        let api = "https://data.dataforseo.com/api/auth/login";
+        assert!(is_cors(Some("https://app.dataforseo.com"), api));
+        assert!(!is_cors(Some("https://data.dataforseo.com"), api));
+        assert!(!is_cors(None, api));
     }
 
     #[test]
