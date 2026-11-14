@@ -1853,6 +1853,9 @@ const KILL_MB: u64 = 8192;
 /// MemAvailable under 1 GB.
 const DANGER_SWAP_PCT: u64 = 75;
 const DANGER_AVAIL_KB: u64 = 1 << 20;
+/// RSS + GPU (MB) the biggest tab needs before `danger` kills it: swap stays full of
+/// other apps' pages, so killing a normal 900 MB Gmail frees little and repeats every 10 s.
+const DANGER_MIN_MB: u64 = 2048;
 
 /// True if `/proc/meminfo` text shows the system near an oomd session kill.
 fn low_memory(meminfo: &str) -> bool {
@@ -1918,8 +1921,10 @@ fn memory_watch(danger: bool) {
                 }
             }
             if w.0 == 0 {
-                if let Some((_, big)) = w.1.take() {
-                    kill_oom(&big);
+                if let Some((mb, big)) = w.1.take() {
+                    if mb >= DANGER_MIN_MB {
+                        kill_oom(&big);
+                    }
                 }
             }
             drop(w);
