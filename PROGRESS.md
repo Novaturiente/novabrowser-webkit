@@ -280,6 +280,8 @@ Newest first. Settled — don't reopen without new evidence.
 
 Newest first.
 
+- 2026-11-16 (IST, 18:50) — Released 0.1.18 (2329eb9: passkeys bd95970). Workspace tests passed (16 browser, 4 extension); release.sh clean source build and `check()` passed; GitHub v0.1.18 asset published (MPL licence file included); -bin source sha256 Passed; .SRCINFO has openssl + dbus depends, bluez optdepend, MPL-2.0. Both AUR updates pushed and remote hashes verified: novabrowser-webkit 5b88d17, novabrowser-webkit-bin 44082de. System installation unchanged. Released at the user's request before the real-browser passkey sign-in check (7.21 [m]). Not run for this tag: features.sh, passwords.sh.
+
 - 2026-11-16 (IST, 19:00) — Passkeys built into the browser (7.21; user: "lets build this" + a deep security audit). See 7.21 for design, checks and accepted limits. New deps: webauthn-authenticator-rs (vendored, patched), webauthn-rs-proto, tokio, qrcode, openssl, base64, psl, url; packages now depend on openssl + dbus, optdepend bluez, licence adds MPL-2.0. Not released; user to sign in to Google / Outlook / Amazon with the local build.
 
 - 2026-11-16 (IST, 18:10) — Passkey spike w19 (user: passkeys are a major issue; theirs live on the phone and in Bitwarden). Engine check: `PublicKeyCredential` undefined in 2.54.2; source has the CTAP protocol code but no Linux transport or GLib API, and no hybrid anywhere in WebKit. GitHub's Google/Apple/passkey buttons sit in `/u2f/login_fragment`, which GitHub loads only when WebAuthn exists. Spike: standalone WebKitGTK app, `shim.js` (TopFrame, document start) + `nbPasskey` reply handler, caBLE on a worker thread, QR in a modal window. Built clean; self-check on localhost reached "QR shown". Not yet checked end to end with a phone.
