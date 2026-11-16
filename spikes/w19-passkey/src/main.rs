@@ -10,7 +10,7 @@ use webauthn_authenticator_rs::{
     cable::connect_cable_authenticator,
     types::{CableRequestType, CableState, EnrollSampleStatus},
     ui::UiCallback,
-    WebauthnAuthenticator,
+    AuthenticatorBackendHashedClientData,
 };
 use webauthn_rs_proto::{CreationChallengeResponse, RequestChallengeResponse};
 use webkit6::{javascriptcore, prelude::*};
@@ -50,30 +50,90 @@ fn error(name: &str, message: &str) -> String {
     json!({ "error": name, "message": message }).to_string()
 }
 
-/// One WebAuthn request over caBLE, on a worker thread. Returns the JSON reply for shim.js.
-fn run(origin: url::Url, req: Value, tx: mpsc::Sender<Ev>) -> String {
+/// rpId must be the origin's host or a parent domain of it (WebAuthn §5.1.3 step 8).
+/// shortcut: no public-suffix list, so `co.uk` passes; the phone still shows the rpId.
+fn rp_id_ok(origin: &str, rp_id: &str) -> bool {
+    let Some(host) = origin.strip_prefix("https://") else { return false };
+    rp_id.contains('.') && (host == rp_id || host.ends_with(&format!(".{rp_id}")))
+}
+
+/// clientDataJSON as browsers write it. webauthn-authenticator-rs's own one serialises the
+/// origin as a URL (`https://accounts.google.com/`, trailing slash) plus `tokenBinding: null`,
+/// which Google's server rejects ("Something went wrong").
+fn client_data(kind: &str, challenge: &[u8], origin: &str) -> Vec<u8> {
+    use base64::Engine;
+    let ch = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(challenge);
+    format!(
+        r#"{{"type":{},"challenge":{},"origin":{},"crossOrigin":false}}"#,
+        json!(kind),
+        json!(ch),
+        json!(origin)
+    )
+    .into_bytes()
+}
+
+/// One WebAuthn request over caBLE, on a worker thread. `origin` is `https://host`, from
+/// WebKit. Returns the JSON reply for shim.js.
+fn run(origin: String, req: Value, tx: mpsc::Sender<Ev>) -> String {
     let create = req["op"] == "create";
     let options = json!({ "publicKey": req["publicKey"] });
     let ui = Ui(tx);
-    let out = tokio::runtime::Runtime::new().map_err(|e| e.to_string()).and_then(|rt| {
+    let out = (|| {
+        let (rp_id, challenge, timeout, request) = if create {
+            let o: CreationChallengeResponse = serde_json::from_value(options).map_err(|e| format!("options: {e}"))?;
+            let pk = o.public_key;
+            (pk.rp.id.clone(), pk.challenge.to_vec(), pk.timeout, Err(pk))
+        } else {
+            let o: RequestChallengeResponse = serde_json::from_value(options).map_err(|e| format!("options: {e}"))?;
+            let pk = o.public_key;
+            (pk.rp_id.clone(), pk.challenge.to_vec(), pk.timeout, Ok(pk))
+        };
+        if !rp_id_ok(&origin, &rp_id) {
+            return Err(format!("SecurityError: rpId {rp_id} does not match {origin}"));
+        }
+        let cd = client_data(if create { "webauthn.create" } else { "webauthn.get" }, &challenge, &origin);
+        let hash = openssl::sha::sha256(&cd).to_vec();
+        let timeout = timeout.unwrap_or(120_000).clamp(30_000, 300_000);
+        let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
         rt.block_on(async {
             let kind = if create { CableRequestType::DiscoverableMakeCredential } else { CableRequestType::GetAssertion };
             let mut a = connect_cable_authenticator(kind, &ui).await.map_err(|e| format!("caBLE connect: {e:?}"))?;
-            if create {
-                let o: CreationChallengeResponse = serde_json::from_value(options).map_err(|e| format!("options: {e}"))?;
-                a.do_registration(origin, o).map(|c| json!(c)).map_err(|e| format!("{e:?}"))
-            } else {
-                let o: RequestChallengeResponse = serde_json::from_value(options).map_err(|e| format!("options: {e}"))?;
-                a.do_authentication(origin, o).map(|c| json!(c)).map_err(|e| format!("{e:?}"))
+            match request {
+                Ok(pk) => a.perform_auth(hash, pk, timeout).map(|mut c| {
+                    c.response.client_data_json = cd;
+                    json!(c)
+                }),
+                Err(pk) => a.perform_register(hash, pk, timeout).map(|mut c| {
+                    c.response.client_data_json = cd;
+                    json!(c)
+                }),
             }
+            .map_err(|e| format!("{e:?}"))
         })
-    });
+    })();
     match out {
         Ok(c) => json!({ "credential": c }).to_string(),
         Err(e) => {
             eprintln!("w19: {e}");
             error("NotAllowedError", &e)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn rp_id_and_client_data() {
+        assert!(super::rp_id_ok("https://accounts.google.com", "google.com"));
+        assert!(super::rp_id_ok("https://google.com", "google.com"));
+        assert!(!super::rp_id_ok("https://evilgoogle.com", "google.com"));
+        assert!(!super::rp_id_ok("https://accounts.google.com", "com"));
+        assert!(!super::rp_id_ok("http://accounts.google.com", "google.com"));
+        let cd = super::client_data("webauthn.get", &[0xfb, 0xff], "https://accounts.google.com");
+        assert_eq!(
+            String::from_utf8(cd).unwrap(),
+            r#"{"type":"webauthn.get","challenge":"-_8","origin":"https://accounts.google.com","crossOrigin":false}"#
+        );
     }
 }
 
@@ -148,7 +208,7 @@ fn main() {
             }
             // the page's origin as WebKit sees it (main frame: shim.js is TopFrame only)
             // shortcut: iframes can post to the handler too; production needs the sender frame's origin
-            let origin = v.uri().and_then(|u| url::Url::parse(&u).ok()).and_then(|u| url::Url::parse(&u.origin().ascii_serialization()).ok());
+            let origin = v.uri().and_then(|u| url::Url::parse(&u).ok()).map(|u| u.origin().ascii_serialization());
             let (Some(origin), Ok(req)) = (origin, serde_json::from_str::<Value>(&value.to_str())) else {
                 answer(&pending, error("SecurityError", "no page origin"));
                 return true;
@@ -164,7 +224,7 @@ fn main() {
             bx.set_margin_bottom(16);
             bx.set_margin_start(16);
             bx.set_margin_end(16);
-            bx.append(&gtk::Label::new(Some(&format!("Passkey for {}\nScan with your phone's camera", origin.host_str().unwrap_or("")))));
+            bx.append(&gtk::Label::new(Some(&format!("Passkey for {origin}\nScan with your phone's camera"))));
             bx.append(&pic);
             bx.append(&label);
             bx.append(&cancel);
