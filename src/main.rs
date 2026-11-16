@@ -9,6 +9,7 @@ mod downloads;
 mod hints;
 mod ipc;
 mod modes;
+mod passkey;
 mod passwords;
 mod permissions;
 mod spawn;

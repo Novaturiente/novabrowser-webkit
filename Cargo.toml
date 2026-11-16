@@ -8,7 +8,7 @@ publish = false
 
 [workspace]
 members = ["ext"]
-exclude = ["spikes"]
+exclude = ["spikes", "vendor"]
 
 [dependencies]
 adblock = { version = "0.13.3", default-features = false, features = ["embedded-domain-resolver", "full-regex-handling"] }
@@ -17,6 +17,18 @@ webkit6 = { version = "0.6", features = ["v2_52"] }
 # Shared with novabrowser (CEF); pinned rev, bump after pushing nova-core changes.
 nova-core = { git = "https://github.com/Novaturiente/nova-core", rev = "96af9c8f86379177e531aab6a878d1f2ef2f2b1c" }
 serde_json = "1.0.152"
+# passkeys (src/passkey.rs): caBLE/hybrid via the phone; vendored with a userHandle fix
+webauthn-authenticator-rs = { version = "=0.6.2", features = ["cable"] }
+webauthn-rs-proto = "=0.6.2"
+url = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "time", "macros", "sync"] }
+qrcode = { version = "0.12", default-features = false }
+openssl = "0.10"
+base64 = "0.22"
+psl = "2"
+
+[patch.crates-io]
+webauthn-authenticator-rs = { path = "vendor/webauthn-authenticator-rs" }
 
 [profile.release]
 lto = "thin"

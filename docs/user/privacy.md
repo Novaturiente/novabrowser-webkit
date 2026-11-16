@@ -99,6 +99,18 @@ pattern("*://app.slack.com/*", (p) => {
 });
 ```
 
+## Passkeys
+
+WebKitGTK has no passkey support of its own, so the browser adds it for the page you
+are on (top frame, https only). When a site asks for a passkey, a window shows the site's
+name and a QR code: scan it with your phone's camera and approve there (Google Password
+Manager, iCloud Keychain, Bitwarden on the phone, ...). Bluetooth must be on, on both
+sides, and the laptop needs the `bluez` service. Nothing is stored in the browser.
+
+Not supported: USB security keys, passkeys suggested in sign-in fields (autofill), passkeys
+inside embedded frames, and background tabs (refused). Cancel stops the request; the same
+tab can't ask again for 3 seconds.
+
 ## Certificate errors
 
 When WebKit refuses a site's certificate, the tab bar asks

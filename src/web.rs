@@ -274,6 +274,7 @@ pub fn page_view(related: Option<&WebView>, private: bool) -> WebView {
     ));
     crate::passwords::add_scripts(&ucm);
     crate::adblock::add_scripts(&ucm);
+    crate::passkey::add_scripts(&ucm);
     ucm.register_script_message_handler("nova", Some(WORLD));
     let b = WebView::builder()
         .user_content_manager(&ucm)
@@ -291,6 +292,7 @@ pub fn page_view(related: Option<&WebView>, private: bool) -> WebView {
     }
     view.set_vexpand(true);
     view.set_hexpand(true);
+    crate::passkey::connect(&ucm, &view);
     let weak = view.downgrade();
     ucm.connect_script_message_received(Some("nova"), move |_, v| {
         if let Some(view) = weak.upgrade() {

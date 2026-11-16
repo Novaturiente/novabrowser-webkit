@@ -129,6 +129,13 @@ Write down anything that fails as: item number, what you did, what happened.
 - 10.7 rbw edit opens through novabrowser as `$VISUAL`.
 - 10.8 A login inside an iframe gets nothing (WebKit edition fills the top frame only).
 
+## Passkeys (7.21, phone + Bluetooth)
+
+- Google, Outlook (username-less and after the email), Amazon: "sign in with a passkey" shows the QR window naming the site; scan with the phone, approve, you are signed in.
+- Cancel in the QR window: the page reports the passkey failed; asking again within 3 s is refused.
+- Navigate away while the QR window is open: it closes.
+- A background tab asking (e.g. a page calling `navigator.credentials.get` after a timer while you switched tabs): refused, no window.
+
 ## Spikes needing a person
 
 - W1 HiDPI scaling, clipboard, `<select>` popups, IME (fcitx/ibus), video with VA-API (`vainfo`, then a 4K YouTube video and CPU use), H.264/AAC files, a WebRTC call.
