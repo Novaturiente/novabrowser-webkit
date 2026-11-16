@@ -1,5 +1,7 @@
 target/
 spikes/w16-raf-leak/run-*/
+# w19 profile holds Google sign-in cookies
+spikes/w19-passkey/run/
 # screenshots show logged-in EEC dashboard data; stderr logs carry page URLs
 spikes/w16-raf-leak/*.png
 spikes/w16-raf-leak/*.stderr
