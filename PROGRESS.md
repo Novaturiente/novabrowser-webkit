@@ -279,6 +279,8 @@ Newest first. Settled — don't reopen without new evidence.
 
 Newest first.
 
+- 2026-11-16 (IST) — Theme: `dark` preset accent blue `#7ab0f5` → grey `#b8bbc2` (user: dark should be dark with a grey accent; accent colours the palette focus border, category headers, hint matches, tab load indicator, download start). nova-core `96af9c8` (pushed, 92 tests passed); pin bumped here, release build + workspace tests passed. CEF edition still pins the old nova-core. Not released.
+
 - 2026-11-16 (IST) — Fix: address-bar palette squeezed the Bookmarks card (5 items) to a 21 px sliver under History (198). Cause: flex shrink is weighted by size and only cards of ≤4 rows were `small` (no shrink). `.grp` now has `min-height: 9em` (header + ~3 rows). Checked: `ui/palette.html` with a stubbed `nova` and 5 + 198 items in the release build, card heights 21,431 px before and 128,324 px after. Not released.
 
 - 2026-11-16 (IST, 16:10) — Released 0.1.16 (100b777: CORS-safe custom headers 3309b50). User confirmed DataForSEO data pages load in the Work profile on the local release build. Workspace tests passed (14 browser, 4 extension); release.sh clean source build and `check()` passed; GitHub v0.1.16 asset published; -bin source sha256 Passed. Both AUR updates pushed and remote hashes verified: novabrowser-webkit 86a9e76, novabrowser-webkit-bin 9e31a67. System installation unchanged. Not run for this tag: smoke.sh, features.sh, passwords.sh.
