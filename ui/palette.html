@@ -41,7 +41,9 @@
           padding: 0 18px 24px; margin: 0 -18px; }
   #list:empty { display: none; }
   body.tall #list { max-height: 70vh; }
-  .grp { position: relative; flex: 0 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: none;
+  /* min-height: shrink is weighted by size, so a 198-row card squeezed a 5-row one to its
+     border; every card keeps its header and ~3 rows */
+  .grp { position: relative; flex: 0 1 auto; min-height: 9em; overflow-y: auto; scrollbar-width: none;
          padding: 0 6px 6px; border-radius: 18px; scroll-padding: 36px 0 8px;
          background: var(--colors-completion-even-bg, #222);
          border: 1px solid var(--colors-completion-category-border-top, #444);
