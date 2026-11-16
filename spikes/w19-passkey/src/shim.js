@@ -51,6 +51,8 @@
   };
   const credential = (j, create) => {
     const r = j.response;
+    // webauthn-rs writes every extension, unused ones as null; browsers leave them out
+    j.extensions = Object.fromEntries(Object.entries(j.extensions || {}).filter(([, v]) => v != null));
     const response = create
       ? make(AuthenticatorAttestationResponse.prototype, { clientDataJSON: unb64u(r.clientDataJSON), attestationObject: unb64u(r.attestationObject), _transports: r.transports })
       : make(AuthenticatorAssertionResponse.prototype, {

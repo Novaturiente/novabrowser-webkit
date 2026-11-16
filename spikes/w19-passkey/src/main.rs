@@ -112,7 +112,10 @@ fn run(origin: String, req: Value, tx: mpsc::Sender<Ev>) -> String {
         })
     })();
     match out {
-        Ok(c) => json!({ "credential": c }).to_string(),
+        Ok(c) => {
+            eprintln!("w19: ok, extensions {} userHandle {}", c["extensions"], !c["response"]["userHandle"].is_null());
+            json!({ "credential": c }).to_string()
+        }
         Err(e) => {
             eprintln!("w19: {e}");
             error("NotAllowedError", &e)
@@ -214,6 +217,8 @@ fn main() {
                 return true;
             };
             eprintln!("w19: {} for {origin}", req["op"]);
+            // request shape for debugging (challenge and ids are one-time / public, no secrets)
+            eprintln!("w19: request {}", req["publicKey"]);
             busy.set(true);
 
             let pic = gtk::Picture::builder().width_request(360).height_request(360).build();
