@@ -9,6 +9,7 @@ pkgbase = novabrowser-webkit
 	makedepends = cargo
 	depends = libwebkitgtk-6.0.so
 	depends = gtk4
+	depends = libadwaita
 	depends = glib2
 	depends = sqlite
 	depends = curl

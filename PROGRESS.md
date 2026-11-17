@@ -261,6 +261,8 @@ WebFormManager yet).
 
 Newest first. Settled — don't reopen without new evidence.
 
+- 2026-11-17 — D2 superseded (user): browser chrome is native GTK 4 + libadwaita (`src/chrome/`: tab bar with live drag and hover ×, palette, popups, prompt, toast, which-key; springs from `adw::SpringAnimation`), no chrome WebViews. Internal `nova://page` pages stay HTML (shared with the CEF edition via nova-core). New runtime dependency `libadwaita`. Page `prefers-color-scheme` set through `adw::StyleManager`. Notes and known gaps: `docs/gtk-ui.md`.
+- 2026-11-17 — Page dark mode off by default in the user's config; `dark-toggle` saves to `darkmode_sites` when the global setting is off (`darkmode_excludes` when on).
 - 2026-10-29 — Overlays fade (in 140 ms after their page painted, out 90 ms; off when GTK animations are off) and the palette backdrop is the live page blurred by GTK, not a snapshot: the snapshot cost a PNG + base64 round trip on the main thread and showed a stale frame (W15). Device-info requests are allowed when the mic or the camera is.
 
 - 2026-10-29 — Prompts over pages: TLS errors ask in the tab-bar prompt (like every other question) instead of a `nova://` error page. Reopen if the prompt proves too easy to answer by accident.
@@ -280,6 +282,8 @@ Newest first. Settled — don't reopen without new evidence.
 ## Session log
 
 Newest first.
+
+- 2026-11-17 (IST, 22:00) — Native GTK chrome merged into master (fast-forward from branch `gtk-ui`, user: "gtk ui works fine"). Checked on the debug build this session: `cargo test --workspace` (22 + 4, `palette::tests::live` on a display), smoke, features, passwords, caret, passkey and new `tests/pointer.sh` (real mouse, 12 checks) all passed; reviewer pass findings fixed. `adw::StyleManager` colour scheme checked dark/light with a probe page. Packaging depends gain `libadwaita`. Release build: smoke, pointer, features, passwords passed. Not released.
 
 - 2026-11-16 (IST, 18:50) — Released 0.1.18 (2329eb9: passkeys bd95970). Workspace tests passed (16 browser, 4 extension); release.sh clean source build and `check()` passed; GitHub v0.1.18 asset published (MPL licence file included); -bin source sha256 Passed; .SRCINFO has openssl + dbus depends, bluez optdepend, MPL-2.0. Both AUR updates pushed and remote hashes verified: novabrowser-webkit 5b88d17, novabrowser-webkit-bin 44082de. System installation unchanged. Released at the user's request before the real-browser passkey sign-in check (7.21 [m]). Not run for this tag: features.sh, passwords.sh.
 

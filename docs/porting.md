@@ -3,7 +3,7 @@
 How each part of the CEF edition (`../novabrowser/novabrowser`, 0.1.8, `9574fca`) moves
 over. **Rev 2 (2026-10-28, D5):** "Copy" below now means "move into the shared
 `nova-core` crate" (PLAN.md §5), used by both editions; nothing is duplicated.
-D2 (chrome in HTML/CSS) means `ui/*.html` are reused, not rewritten as GTK
+D2 (chrome in HTML/CSS, superseded 2026-11-17: chrome is native GTK in `src/chrome/`, see `docs/gtk-ui.md`) meant `ui/*.html` were reused, not rewritten as GTK
 widgets; D3 means the adblock engine runs in `extension/`.
 
 ## 1. Modules
