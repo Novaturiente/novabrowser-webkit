@@ -170,14 +170,13 @@ pub fn apply_config() {
         let spell: Vec<&str> = spell.iter().map(String::as_str).collect();
         c.pages.set_spell_checking_languages(&spell);
     });
-    // WebKitGTK has no per-view `prefers-color-scheme`; it follows the app's GTK dark preference
-    if let Some(gs) = gtk::Settings::default() {
-        match cfg.str("colors.webpage.preferred_color_scheme").as_str() {
-            "dark" => gs.set_gtk_application_prefer_dark_theme(true),
-            "light" => gs.set_gtk_application_prefer_dark_theme(false),
-            _ => gs.reset_property("gtk-application-prefer-dark-theme"),
-        }
-    }
+    // WebKitGTK has no per-view `prefers-color-scheme`; it follows the app's colour scheme,
+    // which libadwaita owns (it ignores and warns about gtk-application-prefer-dark-theme)
+    adw::StyleManager::default().set_color_scheme(match cfg.str("colors.webpage.preferred_color_scheme").as_str() {
+        "dark" => adw::ColorScheme::ForceDark,
+        "light" => adw::ColorScheme::ForceLight,
+        _ => adw::ColorScheme::Default,
+    });
 }
 
 /// User agent for `url` from `content.user_agent` (safari / webkit / custom string).
