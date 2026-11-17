@@ -80,6 +80,11 @@ Fix options (owner decision needed):
 - **B. Turn off the web-process sandbox** (`WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS`). Rejected for a daily driver: every page would run unsandboxed.
 - **C. Camera:** expose `pipewire-0` to web processes with `add_path_to_sandbox` (`src/web.rs:113` already does this for the adblock dir). Cost: a compromised web process could then open any PipeWire stream (microphone, camera, screen casts) without a prompt. The alternative is WebKit's camera portal path (`org.freedesktop.portal.Camera` is in the library); it is unknown when WebKit uses it outside Flatpak.
 
+### Fixes checked with the probe (2026-11-17)
+
+- **Camera:** `src/web.rs` adds `$XDG_RUNTIME_DIR/pipewire-0` to the web-process sandbox. The probe then got `gum_video: ok video/live/Integrated RGB Camera (V4L2)` and `devicesAfter: audioinput:L,videoinput:L,videoinput:L`.
+- **WebRTC network:** nova WebKit test build with `USE_LIBRICE=ON` (`build.sh test`, librice 0.4.3, no PGO, `~/.local/opt/wk-test`), run with `LD_LIBRARY_PATH=~/.local/opt/wk-test/lib`, sandbox on. The probe got `pc: connected/connected`; the stderr shows `webkitwebrtcrice` and "ICE gathering state change from gathering(1) to complete". The rice libraries must be in a directory the sandbox mounts: copied into `wk-test/lib`, because `~/.local/opt/rice` is not visible to the web process, which first failed with `librice-io.so.0: cannot open shared object file`.
+
 ### Q1: screen audio — pending (call runs)
 
 ### Q2: flags on a screen request — pending (call runs; see `media request` lines in `browser.stderr`)
