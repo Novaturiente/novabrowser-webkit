@@ -1,177 +1,196 @@
 # Video calls with screen sharing in novabrowser-webkit
 
 *   **Author:** Novaturiente
-*   **Status:** Proposed
+*   **Status:** Proposed (Goldfish review resolved 2026-11-17)
 *   **Date:** 2026-11-17
 
 --------------------------------------------------------------------------------
 
 ## Overview
 
-novabrowser-webkit is a keyboard-driven browser written in Rust on WebKitGTK 6.0 and GTK 4. The author wants it to be their only browser for one week, as the test for replacing qutebrowser. Work requires Zoom web calls. Meet and Teams calls are also needed. All three need camera, microphone and screen sharing on Wayland (Hyprland).
+novabrowser-webkit is a keyboard-driven browser written in Rust on WebKitGTK 6.0 and GTK 4. The author wants it to be their only browser for one week, as the test for replacing qutebrowser. Work requires Zoom web calls. Google Meet and Microsoft Teams calls are also needed. All three need camera, microphone and screen sharing on Wayland (Hyprland).
 
 This design covers only calls: roadmap items 0 and 3 in `concepts_brief.md`. The event log, capability report, stability fixes, site gate, `/opt` packaging and hardening are separate designs.
+
+### Glossary
+
+*   **novarch:** the author's laptop, where calls are tested.
+*   **novahome:** the author's home build server, where the custom WebKit is built.
+*   **nova WebKit:** the author's own WebKitGTK build, AUR package `webkitgtk-6.0-nova-bin`, version 2.54.2-4 on novarch. "Stock WebKit" is Arch's `webkitgtk-6.0`.
+*   **Site gate:** a planned fixed list of login and call sites that every shipped default must pass (roadmap item 5, not built yet).
+*   **Speedometer A/B:** a benchmark run before and after a change, to show it costs no page speed.
 
 ## The Problem
 
 No real call has been made in this browser. What exists:
 
-*   The custom WebKit build `webkitgtk-6.0-nova-bin 2.54.2-4` is installed on novarch and links `libgstwebrtc-1.0` (checked 2026-11-16). `src/web.rs:234-235` turns on WebRTC and media streams. On the 2026-11-04 build without WebRTC, Meet showed a blank page.
-*   Screen sharing is not handled on purpose. A `content.desktop_capture` setting exists (nova-core `settings.rs:23`, default `ask`), but `src/permissions.rs:136-147` only reaches it when a request is for neither audio nor video. A screen-plus-audio request is shown as "use your microphone" and saved under the microphone setting. A site that was once allowed the microphone can then capture the screen without asking. That is a privacy hole, not just wrong wording. The cause: the `webkit6` 0.6.1 crate has no safe binding for `webkit_user_media_permission_is_for_display_device`, although the C function exists in the installed header and in `webkit6-sys`.
-*   The packages don't pull in what screen sharing needs on Wayland. `gst-plugin-pipewire` and an `xdg-desktop-portal` backend are not in the optional dependencies (`packaging/aur/*/PKGBUILD`). They happen to be installed on novarch.
-*   Zoom's web client has never been tried. [Guessing] It may need WebAssembly SIMD, `SharedArrayBuffer`, WebCodecs, or a browser check that the Safari identity (`src/web.rs:24`) does not pass.
+*   **WebRTC is present.** nova WebKit 2.54.2-4 is installed on novarch and links `libgstwebrtc-1.0` (checked 2026-11-16). `src/web.rs:234-235` turns on WebRTC and media streams. On an older build without WebRTC, Meet showed a blank page.
+*   **Screen sharing has no handling of its own.** A `content.desktop_capture` setting exists (nova-core `settings.rs:23`, default `ask`). But `src/permissions.rs:136-147` only reaches it when a request is for neither audio nor video. A screen-plus-audio request is shown as "use your microphone" and saved under the microphone setting. So a site once allowed the microphone can capture the screen without asking. The code never calls `webkit6::functions::user_media_permission_is_for_display_device`, which the `webkit6` 0.6.1 crate provides (`src/auto/functions.rs:59`).
+*   **Prompts offer "Always" for every request** (`src/permissions.rs:348`). For screen capture this means one key press allows that site to capture the screen forever.
+*   **The packages don't pull in what screen sharing needs on Wayland.** `gst-plugin-pipewire` and an `xdg-desktop-portal` backend are not in any PKGBUILD's optional dependencies. They happen to be installed on novarch.
+*   **Zoom's web client has never been tried.** [Guessing] It may need WebAssembly SIMD, `SharedArrayBuffer`, WebCodecs, or a browser check that the Safari identity (`src/web.rs:24`) does not pass.
 
-If calls fail, the trial week fails on the first workday. If calls fail without a record, the cause can't be found: today the browser keeps no GStreamer, portal or permission logs.
+If calls fail, the trial week fails on the first workday. If calls fail without a record, the cause can't be found: the browser keeps no GStreamer, portal or permission logs.
 
-The proposed solution has two parts. First, a structured spike that makes real calls and tries every option for Zoom, in a fixed order. Second, the code and packaging changes the spike shows are needed: a separate screen-capture permission, any WebKit runtime features or per-site user agents that calls need, and the missing dependencies.
+The proposed solution has two parts. First, fix the screen-capture permission and the package dependencies, which are needed whatever the calls show. Second, a structured spike that makes real calls and tries every option for Zoom in a fixed order, followed only by the changes the spike proves are needed.
 
 ## Goals
 
-*   **G1. Zoom works.** Join a Zoom meeting from a browser link, on nova 2.54.2-4 under Hyprland, and stay in it for 30 minutes with camera, microphone and screen share working. If it fails, try every option in the Zoom ladder (Technical Plan) and record each result. Zoom moves to another browser only after all of them fail.
-*   **G2. Meet and Teams work.** Pass the same test as G1 in Google Meet and Microsoft Teams (web).
-*   **G3. Screen share asks on its own.** A screen-capture request always shows its own prompt, saved under its own setting, never under the microphone or camera answer. A unit test covers how a request maps to a prompt.
-*   **G4. Failures can be diagnosed.** Every call test leaves a log bundle: the GStreamer WebRTC and PipeWire debug output, the portal journal, and the browser's stderr. A failed call can be traced to a cause without running it again.
-*   **G5. Packages declare what calls need.** A fresh AUR install that adds the optional dependencies has everything screen sharing needs on Wayland.
-*   **G6. Stock WebKit is known.** It is known and written down whether Arch's stock `webkitgtk-6.0` can make calls. If it can't, the browser says so on call pages instead of showing a blank page.
+*   **G1. Zoom works.** Join a Zoom meeting from a browser link, on nova WebKit under Hyprland, and stay in it for **10 minutes** with camera, microphone and screen share working. If it fails, try every step of the Zoom ladder (Technical Plan) and record each result. Zoom moves to another browser only after all of them fail.
+*   **G2. Meet and Teams work.** The same test as G1: **10 minutes** in Google Meet, **5 minutes** in Microsoft Teams (web).
+*   **G3. Screen share asks on its own.** A screen-capture request always shows its own prompt, offers only Yes, No and Never, and is saved only under `content.desktop_capture`, never under the microphone or camera answer. A unit test covers how a request maps to a prompt.
+*   **G4. Failures can be diagnosed.** Every call test leaves a log bundle with the GStreamer WebRTC and PipeWire output, the portal journal, the browser's stderr and the memory log for the call. A failed call can be traced to a cause without running it again.
+*   **G5. Packages declare what calls need.** The nova WebKit package depends on `gst-plugins-good`, `gst-plugins-bad` and `libnice`. The browser packages list `gst-plugin-pipewire` and `xdg-desktop-portal` (with a backend) as optional dependencies.
+*   **G6. Stock WebKit's WebRTC support is recorded.** `RESULTS.md` says whether Arch's `webkitgtk-6.0` can make calls. If it can't, the optional-dependency text and the troubleshooting doc say calls need `webkitgtk-6.0-nova-bin`.
+*   **G7. Screen audio, if possible.** If the spike shows WebKitGTK and the portal can share screen audio (Q1), screen audio is part of G1 and G2. If not, it is recorded in `RESULTS.md` and `troubleshooting.md` as a known gap.
 
 ## Non-Goals
 
 *   DRM / Widevine.
 *   Other call services (Discord, Slack huddles, Jitsi, WhatsApp calls). They use the same WebRTC path and may work, but they are not tested or fixed here.
 *   Building a native Zoom client or wrapping Zoom's desktop app.
-*   The general event log, `:report` and the capability report. G4 only needs the logs of a call test, not a permanent log.
-*   Moving the nova build to `/opt` and rebuilding PGO. The calls work happens on the installed 2.54.2-4. A nova rebuild happens here only if Zoom ladder step 6 needs a compiled-in feature.
-*   X11. Only Wayland on Hyprland is tested; other compositors only get the generic portal dependency.
+*   The general event log, `:report` and the capability report. G4 needs only the logs of a call test.
+*   An in-browser "no WebRTC" notice. G6 is covered by package and docs text.
+*   Moving nova WebKit to `/opt` and rebuilding PGO. Calls are tested on the installed 2.54.2-4. A rebuild happens here only if Zoom ladder step 6 needs a compiled-in feature.
+*   X11. Only Wayland on Hyprland is tested; other compositors get only the generic portal dependency.
 *   Making stock WebKit able to make calls if Arch builds it without WebRTC.
 
 ## Open Questions
 
-*   **Q1. Can WebKitGTK share screen audio at all?** [Likely] `xdg-desktop-portal-hyprland`'s ScreenCast portal gives video only. WebKitGTK may not capture system audio for `getDisplayMedia` at all. If so, "screen share with sound" is out of reach, and G1/G2 cover video-only screen share. Needs a check.
-*   **Q2. What do display-capture requests report?** Unknown whether `is_for_video_device` and `is_for_audio_device` are also true for a screen request. Known (2026-11-17): `is_for_display_device` has no safe binding in `webkit6` 0.6.1, only the raw one in `webkit6-sys`.
-*   **Q3. Which runtime features are off by default?** The installed library contains the feature names `ScreenCaptureEnabled`, `PeerConnectionEnabled`, `WebCodecsVideoEnabled`, `WebCodecsAudioEnabled`, `WebCodecsAV1Enabled`, `WebCodecsHEVCEnabled`, `WebRTCAV1CodecEnabled`, `VP9DecoderEnabled`, `CrossOriginOpenerPolicyEnabled`, `CrossOriginEmbedderPolicyEnabled` (`strings` on `/usr/lib/libwebkitgtk-6.0.so.4`, 2026-11-17). Their defaults are unknown: the nova build has no GObject introspection, so they must be listed from Rust.
+*   **Q1. Can WebKitGTK share screen audio at all?** Unknown. The spike's call runs (A3) answer it in each `result.md` (the "screen audio" field).
+*   **Q2. Which flags does a screen request carry?** Unknown whether the audio and video flags are also set on a screen request. B1 logs the three flags of every media request, so A3 answers it. B1's mapping does not depend on the answer, because the display flag wins.
+*   **Q3. Which runtime features are off by default?** The installed library contains the feature names `ScreenCaptureEnabled`, `PeerConnectionEnabled`, `WebCodecsVideoEnabled`, `WebCodecsAudioEnabled`, `WebCodecsAV1Enabled`, `WebCodecsHEVCEnabled`, `WebRTCAV1CodecEnabled`, `VP9DecoderEnabled`, `CrossOriginOpenerPolicyEnabled`, `CrossOriginEmbedderPolicyEnabled` (`strings` on `/usr/lib/libwebkitgtk-6.0.so.4`, 2026-11-17). Their defaults are unknown. The feature dump (A1) answers it.
 *   **Q4. What does Zoom's web client need?** Unknown. The Zoom ladder answers it.
-*   **Q5. Does Arch's stock `webkitgtk-6.0` have WebRTC?** Unknown. The nova package replaces it on novarch, so checking needs a container or another machine.
+*   **Q5. Does Arch's stock `webkitgtk-6.0` have WebRTC?** Unknown. nova WebKit replaces it on novarch, so the container check (A2) answers it.
 
 ## Critical User Journeys (CUJs)
 
 ### CUJ 1: Join a work Zoom meeting
 
-*   **Given**: novabrowser-webkit on nova 2.54.2-4 under Hyprland, signed in to the work Zoom account, camera and mic connected.
-*   **When**: the author opens a Zoom invite link from Calendar or Gmail, chooses "join from your browser", allows camera and mic, and shares a window.
-*   **Then**: other participants see and hear the author and see the shared window; the call stays up for 30 minutes; the browser asked for the camera, mic and screen permissions separately.
+*   **Given**: novabrowser-webkit on nova WebKit under Hyprland, signed in to the work Zoom account, camera and microphone connected.
+*   **When**: the author opens a Zoom invite link from Calendar or Gmail, chooses "join from your browser", allows camera and microphone, and shares a window.
+*   **Then**: other participants see and hear the author and see the shared window; the call stays up for 10 minutes; the browser asked for camera, microphone and screen separately.
 
-### CUJ 2: Share the screen in Meet after allowing the mic earlier
+### CUJ 2: Share the screen in Meet after allowing the microphone earlier
 
-*   **Given**: `meet.google.com` already has a saved "allow" for the microphone.
+*   **Given**: `meet.google.com` already has a saved "Always" for the microphone.
 *   **When**: the author clicks "Present now" in a Meet call.
-*   **Then**: the browser shows a screen-capture prompt (it does not reuse the mic answer), then the Hyprland share picker appears, and the chosen screen or window is shared.
+*   **Then**: the browser shows a screen-capture prompt with Yes, No and Never only (it does not reuse the microphone answer). Then the Hyprland share picker appears, and the chosen screen or window is shared.
 
 ### CUJ 3: Teams meeting from the web
 
 *   **Given**: a Teams meeting link, signed in to the work Microsoft account.
 *   **When**: the author joins in the browser and shares the screen.
-*   **Then**: same result as CUJ 1, with no "unsupported browser" page.
+*   **Then**: the same result as CUJ 1 for 5 minutes, with no "unsupported browser" page.
 
 ### CUJ 4: A call fails
 
-*   **Given**: a call test run with the debug bundle turned on.
+*   **Given**: a call run started through the spike's `call.sh`.
 *   **When**: video, audio or screen share fails.
-*   **Then**: the bundle holds the GStreamer, portal and browser logs for that run, enough to name the failing layer (site check, permission, WebRTC, codec, portal) without repeating the call.
-
-### CUJ 5: An AUR user on stock WebKit opens Meet
-
-*   **Given**: an install on Arch's stock `webkitgtk-6.0` that turns out to have no WebRTC (Q5).
-*   **When**: the user opens a Meet call.
-*   **Then**: the browser shows "This WebKit build has no WebRTC" instead of a blank page.
+*   **Then**: the bundle holds the GStreamer, portal, browser and memory logs for that run. They are enough to name the failing layer (site check, permission, WebRTC, codec, portal, memory cap) without repeating the call.
 
 --------------------------------------------------------------------------------
 
 ## Technical Plan (Architecture)
 
-The work has two phases. Phase A finds out what calls need, with no change to the shipped browser. Phase B builds only the changes Phase A proves are needed, plus the screen-capture permission fix, which is needed either way.
+The work runs in three phases. Phase 0 builds the two changes needed whatever the calls show (B1, B6). Phase A is the spike: it makes real calls on the Phase 0 build and records what calls need. Phase B builds only what Phase A proves.
 
 ```text
- Phase A (spike, spikes/w20-calls/)              Phase B (browser changes)
- ----------------------------------              -------------------------
- A1 feature dump  --> which features are off --> B2 enable call features
- A2 stock WebRTC  --> yes / no ----------------> B4 "no WebRTC" notice (only if no)
- A3 call runs     --> pass / fail + log bundle
-      |                                           B1 screen-capture permission
-      +-- Zoom ladder steps 1-6 ----------------> B2 features, B3 per-site UA,
-                                                  B5 codecs / nova rebuild flags
-                                                  B6 package dependencies
+ Phase 0 (always)          Phase A (spike, spikes/w20-calls/)     Phase B (only if RESULTS.md says so)
+ ----------------          ----------------------------------     ------------------------------------
+ B1 screen permission ---> A1 feature dump                    --> B2 webkit.features (shipped setting)
+ B6 package deps           A2 stock WebRTC check              --> B3 built-in per-site user agent
+ spike env switch          A3 call runs + Zoom ladder         --> B5 codec deps / nova build flags
+                               |                                   remove the spike env switch
+                               +--> RESULTS.md
 ```
+
+### Phase 0: always built
+
+**B1. Screen-capture permission.** `wanted()` in `src/permissions.rs` reads a third flag, "is for display", with the safe `webkit6::functions::user_media_permission_is_for_display_device`. The mapping moves into a small pure function of three booleans, so it can be unit-tested without a WebKit request object. The prompt texts are the CEF edition's (`../novabrowser/novabrowser/src/permissions.rs:25-30`, `MEDIA_BITS`).
+
+**B1 table** (columns: audio, video, display, then the `(setting, prompt text)` pairs asked):
+
+| audio | video | display | asked |
+|---|---|---|---|
+| false | any | true | `content.desktop_capture`: "capture your screen" |
+| true | any | true | `content.desktop_capture`: "capture your screen", "capture your screen audio" |
+| true | false | false | `content.media.audio_capture`: "use your microphone" |
+| false | true | false | `content.media.video_capture`: "use your camera" |
+| true | true | false | both of the two rows above |
+| false | false | false | none: deny the request and log it |
+
+A screen request is never covered by a saved microphone or camera answer. Its prompt offers only `y` Yes, `n` No and `N` Never: "Never" may be saved, "Always" is never offered or saved. Every media request writes one stderr line with its three flags and the setting chosen, which answers Q2.
+
+**B6. Package dependencies.** The nova WebKit package depends on `gst-plugins-good` (it holds `rtpmanager` and VP8, which `webrtcbin` needs), `gst-plugins-bad` and `libnice`. The browser packages get `gst-plugin-pipewire` and `xdg-desktop-portal` (with a backend) as optional dependencies. Both go out with the next release.
+
+**Spike switch.** For testing only, `page_settings()` (`src/web.rs:208`) reads an environment variable `NOVA_WEBKIT_FEATURES`: a comma-separated list of WebKit feature names, each optionally prefixed with `!` to turn it off. It uses the same `Settings::all_features()` lookup that turns on `ColorFilter` (`src/web.rs:238-242`). This is what Zoom ladder steps 3 and 5 use. It is removed before the next release. If the spike shows a feature must ship, it is replaced by the `webkit.features` setting (B2), per the owner rule: a mechanism that is part of a release is a setting; one that is only for testing is an environment variable.
 
 ### Phase A: the spike
 
-All spike runs use their own profile, `--profile calls`, signed in to the work Zoom, Google and Microsoft accounts by hand once. The user's real profiles are never used (AGENTS.md spike rule). Spike files live in `spikes/w20-calls/`.
+All spike runs use their own profile, `--profile calls`, signed in by hand once to the work Zoom, Google and Microsoft accounts. The user's real profiles are never used (AGENTS.md spike rule). Spike files live in `spikes/w20-calls/`.
 
-**A1. Feature dump.** A small throwaway Rust program in the spike dir, linked against the installed `webkit6`, prints every entry of `Settings::all_features()` with its identifier, category, status and default. This answers Q3 and is the input to Zoom ladder step 3. It is needed because the nova build has no GObject introspection, so Python cannot list them.
+**A1. Feature dump.** A short Rust program prints every entry of `Settings::all_features()` with its identifier, category, status, whether it is on by default (`is_default_value()`) and whether it is on in a fresh `Settings` (`is_feature_enabled`). It also prints the WebKit version. It answers Q3 and feeds Zoom ladder step 5. It is needed because nova WebKit has no GObject introspection, so Python cannot list the features.
 
-**A2. Stock WebRTC check.** In a throwaway Arch container (`docker run --rm archlinux`), install `webkitgtk-6.0` and check `ldd /usr/lib/libwebkitgtk-6.0.so.4 | grep gstwebrtc` and `strings ... | grep PeerConnectionEnabled`. This answers Q5. The container is removed after the run; no running Docker stack is touched.
+**A2. Stock WebRTC check.** In a throwaway Arch container, install `webkitgtk-6.0` and check whether its library links `libgstwebrtc-1.0` and contains `PeerConnectionEnabled`. It answers Q5. The container is removed after the run; no running Docker stack is touched.
 
-**A3. Call runs with a log bundle.** A script `spikes/w20-calls/call.sh <name>` starts the browser with:
+**A3. Call runs with a log bundle.** A script `call.sh <name> <url>` starts the browser with GStreamer debug output turned on (`GST_DEBUG=webrtc*:4,pipewire*:4,nice:3,webkit*:4`, no colour). There is no `GST_DEBUG_FILE`: every process, including the sandboxed web processes, writes to the inherited stderr, which goes to the bundle's `browser.stderr`. When the browser exits, the script adds:
 
-*   `GST_DEBUG=webrtc*:4,webrtcbin:4,pipewire*:4,nice:3` and `GST_DEBUG_FILE` set to the bundle dir,
-*   browser stderr sent to the same dir,
-*   on exit, `journalctl --user --since <start>` for `xdg-desktop-portal` and `xdg-desktop-portal-hyprland` appended,
-*   a short `result.md` the tester fills in: site, entry point, user agent, features on, camera / mic / screen / screen audio pass or fail, call length.
+*   the portal journal for the call window, in `portal.log`,
+*   the `nb-memlog` lines for the call window, if that logger is running, in `memlog.txt`,
+*   package versions, in `env.txt`,
+*   a copy of the per-run form, `result.md`, for the tester to fill in.
 
-Bundles go to `~/.local/state/novabrowser-webkit/calls/<date-time>-<name>/`, outside the repo, because GStreamer logs can contain meeting IDs and IP addresses.
+Bundles go to `~/.local/state/novabrowser-webkit/calls/<date-time>-<name>/`, outside the repo, because GStreamer logs can contain meeting IDs and IP addresses. The first Meet run checks that `webrtcbin` lines from the web process actually appear in `browser.stderr`.
 
-Each run is a real call with a second device (phone) as the other participant, so video, audio and the shared screen can be seen from the far side.
+Each run is a real call with a phone as the other participant, so video, audio and the shared screen can be checked from the far side.
+
+**Every run records** these, for any site:
+
+*   **Console checks** on the meeting page: `crossOriginIsolated`, `typeof SharedArrayBuffer`, `typeof VideoEncoder`, and `WebAssembly.validate` on a SIMD module.
+*   **Codec list:** the encoders and decoders `webrtcbin` found, from `browser.stderr`.
+*   **Permission flags:** the three flags from B1's stderr line.
 
 **Order of runs:**
 
-1. Meet (the most likely to work; proves the WebRTC and portal path).
-2. Teams.
-3. Zoom, following the ladder below until it passes.
-4. One 30-minute call on whichever site the author uses most at work, to check G1's duration bar.
+1. Meet, 10 minutes. It is the most likely to work and proves the WebRTC and portal path.
+2. Teams, 5 minutes.
+3. Zoom, 10 minutes, following the ladder until it passes.
 
 **The Zoom ladder.** Each step is tried only if all earlier steps failed. Each attempt gets its own bundle.
 
 1. **Entry points:** the `app.zoom.us` web app, the "join from your browser" link (`zoom.us/wc/join/<id>`), and an invite link opened from Calendar or Gmail.
-2. **User agent for `*.zoom.us`:** the current Safari identity, then a recent Chrome on Linux, then a recent Firefox. This needs no code: `content.user_agent` is already a per-site setting (`src/web.rs:199-205`, applied per load in `src/tabview.rs:12-28`), set through `config.ts` or `:set -u`.
-3. **Runtime features:** from the A1 dump, every feature that is off by default and related to media, WebCodecs, WebRTC codecs, `SharedArrayBuffer`, WebAssembly or screen capture, turned on one at a time with a restart between tries.
-4. **Cross-origin isolation:** in the console on the Zoom meeting page, check `crossOriginIsolated`, `typeof SharedArrayBuffer`, `typeof VideoEncoder`, and `WebAssembly.validate` on a SIMD module. If Zoom asks for a feature that is missing, that names the gap.
-5. **Codecs:** in the GStreamer log, check which encoders and decoders `webrtcbin` found (H.264 through `gst-plugins-ugly` x264, `gst-libav` or VA-API; VP8 and VP9 through `gst-plugins-good`; Opus). Install what is missing and retry.
-6. **The WebKit build:** if a needed feature is compiled out, add it to the nova build flags in `spikes/wk-build/build.sh` and rebuild on novahome.
-7. **Stop:** after steps 1-6 all fail, Zoom stays in another browser; this is the one accepted exception to the trial week.
+2. **User agent for `*.zoom.us`:** the current Safari identity, then a recent Chrome on Linux, then a recent Firefox. No code: `content.user_agent` is already a per-site setting (`src/web.rs:199-205`, applied per load in `src/tabview.rs:12-28`), set with `:set -u`.
+3. **Features the checks point to:** if a console check shows a missing API, turn on the matching feature from the A1 dump with `NOVA_WEBKIT_FEATURES` and restart.
+4. **Codecs:** if the codec list lacks one Zoom offers (H.264 through `gst-plugins-ugly`, `gst-libav` or VA-API; VP8 and VP9 through `gst-plugins-good`; Opus), install it and retry.
+5. **Remaining features:** every other feature that is off by default and related to media, WebCodecs, WebRTC codecs, `SharedArrayBuffer`, WebAssembly or screen capture, one at a time, with a restart between tries.
+6. **The WebKit build:** if a needed feature is compiled out, add it to the nova WebKit build flags and rebuild on novahome.
+7. **Stop:** after steps 1-6 all fail, Zoom stays in another browser. This is the one accepted exception to the trial week.
 
-The spike ends with `spikes/w20-calls/RESULTS.md`: one row per run, the answers to Q1-Q5, and the list of Phase B changes the results call for.
+The spike ends with `spikes/w20-calls/RESULTS.md`: one row per run, the answers to Q1-Q5, and a section "Phase B changes required" that names the exact features, per-site defaults, codec dependencies and build flags to ship, or "none".
 
-### Phase B: browser changes
+### Phase B: only what the spike proves
 
-**B1. Screen-capture permission (always built).** `wanted()` in `src/permissions.rs` gets a third flag, "is for display", read through the raw `webkit6::ffi::webkit_user_media_permission_is_for_display_device` call, since the safe crate lacks it. The mapping moves into a small pure function of three booleans (audio, video, display) so it can be unit-tested without a WebKit request object:
+**B2. Shipped feature switches.** Built only if `RESULTS.md` names a feature to ship. A new nova-core setting `webkit.features` (a list, default from `RESULTS.md`) replaces the spike switch in `page_settings()`. Rules:
 
-| audio | video | display | setting(s) asked |
-|---|---|---|---|
-| any | any | true | `content.desktop_capture` only |
-| true | false | false | `content.media.audio_capture` |
-| false | true | false | `content.media.video_capture` |
-| true | true | false | both mic and camera |
-| false | false | false | `content.desktop_capture` (old fallback) |
+*   It is global only. `page_settings()` builds one settings object per view with no URL, so per-site values are ignored, and the docs say so.
+*   Changes reach new tabs only.
+*   `ColorFilter` stays on whatever the list says (dark mode needs it).
+*   When a name is listed twice, the last entry wins.
+*   An unknown name is logged once per name per process and skipped, so a newer or older WebKit never breaks startup.
+*   The `webkit.` prefix means `other_edition` (nova-core `settings.rs:165-169`) already refuses it in the CEF edition.
 
-When display is true, the prompt says "capture your screen" (or "capture your screen and its sound" when audio is also true) and the answer is saved only under `content.desktop_capture`. A saved microphone "allow" never covers a screen request. If Q2 shows WebKit sets the video flag on screen requests too, the table above already handles it, because display wins.
+**B3. Built-in per-site user agent.** Built only if `RESULTS.md` names a per-site default, for example a `content.user_agent` for `*.zoom.us`. nova-core has no shipped per-site defaults today, so this adds a short built-in pattern list in nova-core. Entries may only use keys the CEF edition ignores, such as `content.user_agent` (WebKit-only, `settings.rs:15`) or `webkit.*` keys. The full lookup order for a setting on a URL:
 
-**B2. Call features (only what A1 and A3 prove).** Turn on, in `page_settings()` (`src/web.rs:208`), the runtime features the spike shows calls need. They use the same lookup that already turns on `ColorFilter` (`src/web.rs:238-242`). Where these switches live (in code, as a shipped setting, or in user config) is an open owner decision, below.
+1. a `:set -u` value for a matching pattern,
+2. a `config.ts` `pattern()` value,
+3. a user global value (`:set`, `config.ts` or `autoconfig.json`),
+4. a built-in pattern,
+5. the schema default.
 
-**B3. Per-site user agent (only if the ladder needs it).** No code. A shipped or documented `content.user_agent` pattern for the call host. Where it lives is part of the same owner decision.
+**B5. Codec and build changes.** Built only if the ladder needs them. Codec plugins become optional dependencies with a reason. A compiled-out feature becomes a nova WebKit build flag, with a Speedometer A/B (owner practice for engine changes; AGENTS.md requires one for "anything injected into every frame").
 
-**B4. "No WebRTC" notice (only if A2 says stock has no WebRTC).** At page load on a known call host (`meet.google.com`, `teams.microsoft.com`, `teams.live.com`, `*.zoom.us`), if `window.RTCPeerConnection` is missing, show the browser message "This WebKit build has no WebRTC: calls need webkitgtk-6.0-nova". It uses the page-to-browser message path `MEDIA_JS` already uses (`src/web.rs:28-39`) for missing codecs.
-
-**B5. Codec and build changes (only if the ladder needs them).** Codec plugins become optional dependencies with a reason. A compiled-out feature becomes a build flag in `spikes/wk-build/build.sh`, with a Speedometer A/B per the project rule that any engine change gets one.
-
-**B6. Package dependencies (always built).** Add to the browser packages' optional dependencies: `gst-plugin-pipewire` (screen capture on Wayland) and `xdg-desktop-portal` with a backend (`xdg-desktop-portal-hyprland`, `-gnome` or `-kde`). Make `gst-plugins-bad` and `libnice` hard dependencies of `webkitgtk-6.0-nova-bin`, because its WebRTC fails without them.
-
-### Owner decision: where call fixes live
-
-**Chosen (owner, 2026-11-17): shipped settings in nova-core.**
-
-*   **Feature switches:** a new setting `webkit.features` (kind `list`, default chosen from the spike results, maybe empty) in nova-core `settings.rs`, next to `webkit.itp` (line 17). Each entry is a WebKit feature identifier from `Settings::all_features()`, with an optional `!` prefix to turn a feature off. `page_settings()` applies the list; an unknown name is logged once to stderr and skipped, so a newer or older WebKit never breaks startup. The `webkit.` prefix means `other_edition` (nova-core `settings.rs:165-169`) already refuses `:set webkit.features` in the CEF edition, with no extra code.
-*   **Per-site user agent:** nova-core has per-site values only from the user (`config.ts` patterns, `:set -u`; `config.rs:131-140`), and no shipped per-site defaults. This adds a short built-in pattern list in nova-core, checked by `get_for` after the user's runtime and `config.ts` patterns, so any user value still wins. It holds only what the spike proves (for example a `content.user_agent` for `*.zoom.us`). It is shared with the CEF edition, so CEF gets the same defaults; entries are kept to keys both editions read, or to `webkit.*` keys.
-*   **Cost:** a nova-core change, a new nova-core commit, and a pin bump in this repo's `Cargo.toml` / `Cargo.lock`.
-*   **Risk:** a shipped default that breaks another site is now on for every user until the next release. Users can override it with `:set -u` or `config.ts`. Each shipped default must pass the site gate once that exists (roadmap item 5); until then, the call sites in this design are the gate.
+**Where shipped fixes live** (owner decision, 2026-11-17): shipped settings in nova-core (B2, B3), so every user gets them and can override them with `:set` or `config.ts`. Cost: a nova-core commit and a pin bump in this repo.
 
 ## Alternatives Considered
 
@@ -180,223 +199,284 @@ When display is true, the prompt says "capture your screen" (or "capture your sc
 Turn on every media, WebCodecs and WebRTC feature and send a Chrome user agent to call sites, then test.
 
 *   **Pros**: one step instead of two; no throwaway programs or scripts.
-*   **Cons**: each feature that is off by default is off for a reason (unfinished, buggy or unsafe). Turning many on at once can break other sites or crash web processes, and when a call then works or fails, nobody knows which change mattered. A Chrome user agent on a WebKit engine can make sites send Chrome-only code paths that fail.
-*   **Reason for Rejection**: it breaks the hardening rule from the brief (nothing ships on by default without evidence) and makes failures impossible to attribute.
+*   **Cons**: a feature that is off by default is off for a reason (unfinished, buggy or unsafe). Turning many on at once can break other sites or crash web processes. When a call then works or fails, nobody knows which change mattered. A Chrome user agent on a WebKit engine can make sites send Chrome-only code that fails.
+*   **Reason for Rejection**: it breaks the brief's hardening rule (nothing ships on by default without evidence) and makes failures impossible to attribute.
 
 ### Alternative B: Hard-code call fixes in `src/web.rs`
 
 *   **Pros**: no nova-core change; works for every user without config.
-*   **Cons**: a fix that breaks a site can't be turned off without a rebuild and release.
-*   **Reason for Rejection**: owner chose shipped settings in nova-core (2026-11-17), which keeps the out-of-the-box result and adds a user override.
+*   **Cons**: a fix that breaks a site can't be turned off without a rebuild and a release.
+*   **Reason for Rejection**: users need a way to undo a shipped fix that breaks another site. A setting gives that; code does not.
 
 ### Alternative C: User config only, documented
 
 *   **Pros**: smallest change; nothing shipped that could break other sites.
 *   **Cons**: AUR users who never read the docs get a broken Zoom.
-*   **Reason for Rejection**: owner chose shipped settings (2026-11-17); the browser is meant for other users too.
+*   **Reason for Rejection**: the browser is meant for other users too, so a fix calls need must work out of the box.
 
 ### Alternative D: Keep detecting screen requests as "neither audio nor video"
 
 This is the current code (`src/permissions.rs:145`).
 
-*   **Pros**: no FFI call, no change.
-*   **Cons**: a screen-plus-audio request is treated as a microphone request, so a saved mic "allow" grants screen capture with no prompt.
+*   **Pros**: no change.
+*   **Cons**: a screen-plus-audio request is treated as a microphone request, so a saved microphone answer grants screen capture with no prompt.
 *   **Reason for Rejection**: privacy hole (G3).
 
-### Alternative E: Add a safe `is_for_display_device` binding to the `webkit6` crate
+### Alternative E: Automated call tests
 
-Vendor the crate and add the method, or send the binding upstream and wait.
-
-*   **Pros**: no `unsafe` block in this repo.
-*   **Cons**: vendoring a whole crate for one function adds a maintenance burden; waiting upstream blocks the fix for an unknown time.
-*   **Reason for Rejection**: one `unsafe` call to a function the `webkit6-sys` crate already declares is smaller. An upstream patch is listed under Future Improvements; when it lands, the `unsafe` call is replaced.
-
-### Alternative F: Automated call tests
-
-Use GStreamer fake sources as camera and mic, and drive calls through IPC.
+Use GStreamer fake sources as camera and microphone, and drive calls through IPC.
 
 *   **Pros**: repeatable; could join the test suites.
-*   **Cons**: the Wayland share picker needs a person to choose a screen; whether the far side sees and hears the call can't be checked from the browser; Zoom, Meet and Teams need real signed-in accounts and change their pages often.
-*   **Reason for Rejection**: the cost is high for the information it gives. Calls are tested by hand with a phone as the far side, and every run leaves a log bundle. The automated parts are the B1 unit test and, later, the site gate's feature probes (roadmap item 5).
+*   **Cons**: the Wayland share picker needs a person to choose a screen. Whether the far side sees and hears the call can't be checked from the browser. Zoom, Meet and Teams need real signed-in accounts and change their pages often.
+*   **Reason for Rejection**: high cost for the information it gives. Calls are tested by hand with a phone as the far side, and every run leaves a log bundle. The automated part is the B1 unit test.
 
-### Alternative G: Zoom outside WebKit from the start
+### Alternative F: Zoom outside WebKit from the start
 
 Use the Zoom desktop app or a Chromium browser for Zoom only.
 
 *   **Pros**: Zoom works on day one with no work.
 *   **Cons**: the trial week no longer tests the browser on the author's main work tool.
-*   **Reason for Rejection**: owner requires every option to be tried first (2026-11-16). It stays as the last ladder step.
+*   **Reason for Rejection**: the owner requires every option to be tried first (2026-11-16). It stays as the last ladder step.
+
+## Risks & Mitigations
+
+| Risk | Mitigation |
+|---|---|
+| A feature that is off by default crashes web processes or breaks other sites | Turned on one at a time, only from the spike switch; shipped only after `RESULTS.md` names it, as a setting users can undo |
+| A shipped default reaches the CEF edition | Built-in entries use only keys the CEF edition ignores |
+| Zoom, Meet or Teams change their pages after the spike passes | Call rows in `docs/manual-test.md` are re-checked before each release; the site gate (roadmap item 5) takes this over later |
+| The 3072 MB per-web-process cap (`src/web.rs:93-94`) kills a long call | Each bundle holds the memory log for the call, so a kill is visible; the cap itself stays (owner decision, 2026-11-16) |
+| GStreamer output from sandboxed web processes is lost | Output goes to the inherited stderr, not a file; the first Meet run checks that web-process lines appear |
 
 --------------------------------------------------------------------------------
 
 ## Non-Functional Requirements
 
-*   **Security & Privacy:** screen capture always gets its own prompt and its own saved answer (B1). Call log bundles stay outside the repo in `~/.local/state/novabrowser-webkit/calls/`, because GStreamer logs contain meeting IDs and IP addresses. The spike's `calls` profile holds work sign-ins; its data dir is never copied into the repo.
-*   **Performance:** any change to the WebKit build (ladder step 6) gets a Speedometer A/B (AGENTS.md rule). `webkit.features` entries that change page behaviour on every site get the same A/B before they ship as a default.
-*   **Rollout & Rollback:** every shipped call fix is a setting default, so a user can undo it with `:set` or `config.ts` without a new release. The nova package dependency change keeps the same release asset (see file 16).
+*   **Security & Privacy:** a screen request always gets its own prompt, with no "Always", and its own saved answer (B1). Call bundles stay outside the repo in `~/.local/state/novabrowser-webkit/calls/`, because GStreamer logs can contain meeting IDs and IP addresses. The spike's `calls` profile holds work sign-ins; its data dir is never copied into the repo.
+*   **Performance:** a nova WebKit build-flag change gets a Speedometer A/B. A `webkit.features` default that changes page behaviour on every site gets one before it ships.
+*   **Rollout & Rollback:**
+    *   B1: revert its commit.
+    *   B2, B3: undo per user with `:set` or `config.ts`, or revert the nova-core default and bump the pin.
+    *   B5 build flags: downgrade to the cached nova WebKit 2.54.2-4 package.
+    *   B6: set `packaging/aur/webkitgtk-6.0-nova-bin/PKGBUILD` back to its previous `pkgrel` and dependencies.
+    *   Spike switch: removed before release; nothing to roll back.
+
+--------------------------------------------------------------------------------
+
+### Additional Resources
+
+*   `concepts_brief.md`: the daily-driver roadmap this design comes from.
+*   `AGENTS.md`: project rules (spikes, Speedometer A/B, reference implementation).
+*   `../novabrowser/novabrowser/src/permissions.rs`: the CEF edition's prompt texts.
 
 ### Future Improvements
 
-*   **Upstream binding:** send a safe `is_for_display_device` binding to the `webkit6` crate; replace the `unsafe` call when it lands.
 *   **Other call services:** Discord, Slack huddles, Jitsi, WhatsApp calls through the same path, once the site gate (roadmap item 5) exists.
 
 --------------------------------------------------------------------------------
 
 ## Detailed Implementation Plan
 
-Order: Phase A files 1-5 first. Then file 6-8 (nova-core), 9 (pin bump), 10-15 (browser), 16-17 (packaging), 18-23 (docs and state). Files marked **conditional** are changed only if `spikes/w20-calls/RESULTS.md` says so; if the spike does not call for them, they are left alone and the results file says why.
+### Build order and conditions
 
-**Always built:** the spike (1-5), the screen-capture permission (10), packaging (16-17), and the docs and state parts that describe them (18-21, 23). **Built only if `RESULTS.md` names at least one feature switch or per-site default:** nova-core (6-8), the pin bump (9), the `webkit.features` parts of 11, 13, 18 and 22. This keeps an empty setting and an empty lookup step from shipping when calls need neither (Zoom Out review, 2026-11-17).
+| Step | Files | Built when | Depends on |
+|---|---|---|---|
+| 1 | 1 `src/permissions.rs` | always | — |
+| 2 | 2 `src/web.rs` (spike switch) | always | — |
+| 3 | 3, 4 (PKGBUILDs) | always | — |
+| 4 | checkpoint: build and test | always | 1-3 |
+| 5 | 5-10 (spike) | always | 4 |
+| 6 | 11, 13, 14, 15, 2 (B2 part) | `RESULTS.md` § Phase B names a feature | 5 |
+| 7 | 12, 13, 14 | `RESULTS.md` § Phase B names a per-site default | 5 |
+| 8 | 2 (remove spike switch) | if step 6 is not built | 5 |
+| 9 | 16, 3 (rebuild part) | `RESULTS.md` § Phase B names a build flag | 5 |
+| 10 | 17-20, 22 | always | 5-9 |
+| 11 | 21 | step 6 or 7 built | 6, 7 |
+
+The spike switch never reaches a release: step 6 replaces it, or step 8 removes it.
 
 ### Target Files to Create/Modify
 
-#### Phase A: spike (`spikes/w20-calls/`)
+#### 1. `src/permissions.rs` (Modify, always)
 
-#### 1. `spikes/w20-calls/Cargo.toml` (Create)
+*   **Type / Scope**: permission mapping and prompt choices (B1).
+*   **Proposed Changes**:
+    *   New pure function `media_wanted(audio, video, display) -> Vec<(setting, prompt text)>` returning the B1 table. The no-flags row returns an empty list.
+    *   `wanted()` (line 134): for a `UserMediaPermissionRequest`, read display with `webkit6::functions::user_media_permission_is_for_display_device(m)` and call `media_wanted`. An empty list means deny (the existing `None` path, line 133). Write one stderr line per media request: `novabrowser: media request audio=<0|1> video=<0|1> display=<0|1> -> <settings or deny>`.
+    *   `choices()` (line 346): when the pending entry's settings include `content.desktop_capture`, offer `y` Yes, `n` No, `N` Never only. The pending entry already holds its settings (`push`, `Pending.settings`).
+    *   The `DeviceInfoPermissionRequest` rule (lines 159-171) stays: device labels follow the camera and microphone settings, never `content.desktop_capture`.
+    *   Unit test `media_wanted_cases`: each row of the B1 table; "display with audio never asks for `content.media.audio_capture`"; "a screen prompt offers no Always choice".
 
-*   **Type / Scope**: standalone throwaway Rust crate (the workspace already excludes `spikes/`, root `Cargo.toml:11`). Its `target/` is ignored by the root `.gitignore` (`target/`).
-*   **Proposed Changes**: package `w20-features`; dependencies `gtk4` 0.11 and `webkit6` 0.6 with feature `v2_52`, the same versions as the browser.
+#### 2. `src/web.rs` (Modify)
 
-#### 2. `spikes/w20-calls/src/main.rs` (Create)
+*   **Type / Scope**: page settings.
+*   **Proposed Changes**:
+    *   **Always (step 2):** in `page_settings()` (line 208), replace the single `ColorFilter` lookup (lines 238-242) with one pass over `all_features()`. It turns on `ColorFilter`, then applies `NOVA_WEBKIT_FEATURES` (comma-separated, `!` prefix turns a feature off, last entry wins). `ColorFilter` is set on again after the list. An unknown name is logged once per name per process (a process-wide set of names already logged): `novabrowser: unknown WebKit feature <name>`.
+    *   **Step 6:** the list comes from the `webkit.features` setting instead of the environment variable.
+    *   **Step 8:** remove the environment variable read; keep the single-pass lookup for `ColorFilter`.
 
-*   **Type / Scope**: feature dump program (answers Q3).
-*   **Proposed Changes**: initialise GTK, create `webkit6::Settings::new()`, walk `Settings::all_features()`, print one tab-separated line per feature: identifier, category, status, `default_value()`, current value on a fresh `Settings`. Also print `webkit6::major_version()` / minor / micro. No window is opened. Output saved as `spikes/w20-calls/features-2.54.2-4.tsv`.
+#### 3. `packaging/aur/webkitgtk-6.0-nova-bin/PKGBUILD` (Modify, always) and its `.SRCINFO` (Create, generated)
 
-#### 3. `spikes/w20-calls/stock-webrtc.sh` (Create)
+*   **Type / Scope**: AUR binary package for nova WebKit.
+*   **Proposed Changes**:
+    *   Move `gst-plugins-bad` and `libnice` from `optdepends` (lines 24-25) to `depends`, and add `gst-plugins-good` to `depends` (it moves out of `optdepends`, line 26).
+    *   Add `'gst-plugin-pipewire: screen sharing on Wayland'` to `optdepends`.
+    *   Bump `pkgrel` to 5. Replace the `_tag` expression (line 30) with the literal `webkitgtk-6.0-nova-2.54.2-4`, so the existing release asset and `sha256sums` (line 32) stay valid.
+    *   Generate `.SRCINFO` with `makepkg --printsrcinfo > .SRCINFO` and push the package to its AUR repo. `packaging/release.sh` does not handle this package (`release.sh:44`), so this is a manual step.
+    *   **Step 9 (rebuild):** restore `_tag=webkitgtk-6.0-nova-$pkgver-$pkgrel`, upload the new tarball as that GitHub release asset, update `sha256sums`, and bump `pkgrel`.
 
-*   **Type / Scope**: Bash, answers Q5.
-*   **Proposed Changes**: `docker run --rm archlinux` that runs `pacman -Syu --noconfirm webkitgtk-6.0 binutils`, then prints `pacman -Q webkitgtk-6.0`, `ldd /usr/lib/libwebkitgtk-6.0.so.4 | grep -E 'gstwebrtc|gstsdp'` and `strings /usr/lib/libwebkitgtk-6.0.so.4 | grep -c PeerConnectionEnabled`. `--rm` removes the container; no existing container, image or stack is touched beyond pulling `archlinux`.
+#### 4. `packaging/PKGBUILD`, `packaging/aur/novabrowser-webkit/PKGBUILD`, `packaging/aur/novabrowser-webkit-bin/PKGBUILD` (Modify, always)
 
-#### 4. `spikes/w20-calls/call.sh` (Create)
+*   **Type / Scope**: browser packages (-git, tagged release, -bin).
+*   **Proposed Changes**: add to the `optdepends` array:
+    *   `'gst-plugin-pipewire: screen sharing on Wayland'`
+    *   `'xdg-desktop-portal: screen sharing (needs a backend: xdg-desktop-portal-hyprland, -gnome or -kde)'`
 
-*   **Type / Scope**: Bash, the call-run wrapper (G4).
-*   **Proposed Changes**: usage `call.sh <name> [url]`. Steps:
-    1. `dir=~/.local/state/novabrowser-webkit/calls/$(date +%F-%H%M)-<name>`, `mkdir -p`, `chmod 700`.
-    2. Record start time; write `env.txt` with `pacman -Q webkitgtk-6.0-nova-bin gst-plugin-pipewire xdg-desktop-portal-hyprland gst-plugins-bad gst-plugins-good gst-plugins-ugly gst-libav libnice` and the browser version.
-    3. Run `target/release/novabrowser-webkit --profile calls <url>` with `GST_DEBUG=webrtc*:4,webrtcbin:4,pipewire*:4,nice:3`, `GST_DEBUG_FILE=$dir/gst.log`, `GST_DEBUG_NO_COLOR=1`, stderr to `$dir/browser.stderr`. The script is run through the `process` tool, never with `&`.
-    4. After the browser exits: `journalctl --user --since "$start" -u xdg-desktop-portal -u xdg-desktop-portal-hyprland > $dir/portal.log`.
-    5. Copy `spikes/w20-calls/result-template.md` to `$dir/result.md` for the tester.
+    Step 10 adds any codec package `RESULTS.md` names, for example `'gst-plugins-ugly: H.264 encoding for calls'`. If A2 shows stock WebKit has no WebRTC, the `webkitgtk-6.0-nova-bin` entry in `optdepends` becomes `'webkitgtk-6.0-nova-bin: video calls (WebRTC), dark mode, PGO'`. These ship with the next browser release through `packaging/release.sh` (no change to it).
 
-#### 5. `spikes/w20-calls/RESULTS.md` (Create)
+#### 5. `spikes/w20-calls/Cargo.toml` (Create)
 
-*   **Type / Scope**: spike results (Markdown), committed.
-*   **Proposed Changes**: a table with one row per run (date, site, entry point, user agent, features on, camera / mic / screen / screen audio, call length, bundle dir name, pass or fail, cause). Then answers to Q1-Q5, then "Phase B changes required": the exact `webkit.features` entries, built-in `content.user_agent` patterns, codec dependencies and build flags, or "none". The template file `spikes/w20-calls/result-template.md` (Create) holds the per-run form used by file 4.
+*   **Type / Scope**: standalone throwaway crate. The workspace excludes `spikes/` (root `Cargo.toml:11`), and the root `.gitignore` ignores `target/`.
+*   **Proposed Changes**: package `w20-calls`, with the same `gtk4` and `webkit6` dependency lines as `spikes/w9-baseline/Cargo.toml`.
 
-#### Phase B: nova-core (`../novabrowser/nova-core`, its own repo)
+#### 6. `spikes/w20-calls/src/main.rs` (Create)
 
-#### 6. `../novabrowser/nova-core/src/settings.rs` (Modify, conditional)
+*   **Type / Scope**: feature dump (A1).
+*   **Proposed Changes**:
+    *   Initialise GTK. Create a `Settings`.
+    *   For every entry of `Settings::all_features()`, print one tab-separated line: `identifier()`, `category()`, `status()`, `is_default_value()`, `settings.is_feature_enabled(&f)`.
+    *   First print `webkit6::functions::{major,minor,micro}_version()`.
+    *   No window is opened. Run as `cargo run > features-<version>.tsv` (committed).
+
+#### 7. `spikes/w20-calls/stock-webrtc.sh` (Create)
+
+*   **Type / Scope**: Bash, A2.
+*   **Proposed Changes**: `docker run --rm archlinux` running `pacman -Syu --noconfirm webkitgtk-6.0 binutils`. It then prints `pacman -Q webkitgtk-6.0`, the `ldd` lines for `gstwebrtc` and `gstsdp`, and the count of `PeerConnectionEnabled` in `strings`. `--rm` removes the container.
+
+#### 8. `spikes/w20-calls/result-template.md` (Create)
+
+*   **Type / Scope**: per-run form.
+*   **Proposed Changes**: fields: date, site, entry point, user agent, `NOVA_WEBKIT_FEATURES` value, console checks (four results), codec list, permission flags (audio/video/display per request), camera, microphone, screen, screen audio (each pass/fail), call length, result, cause if failed.
+
+#### 9. `spikes/w20-calls/call.sh` (Create)
+
+*   **Type / Scope**: Bash, A3 call-run wrapper.
+*   **Interface**: `call.sh <name> <url>`, run from the repo root against `target/release/novabrowser-webkit --profile calls <url>`.
+*   **Proposed Changes**:
+    *   Make the bundle directory `~/.local/state/novabrowser-webkit/calls/<YYYY-MM-DD-HHMM>-<name>/`, mode 700.
+    *   Record the start time in a form `journalctl --since` accepts.
+    *   Write `env.txt`: versions of `webkitgtk-6.0-nova-bin`, `gst-plugin-pipewire`, `xdg-desktop-portal-hyprland`, `gst-plugins-good`, `gst-plugins-bad`, `gst-plugins-ugly`, `gst-libav`, `libnice`, and the browser binary.
+    *   Run the browser with `GST_DEBUG=webrtc*:4,pipewire*:4,nice:3,webkit*:4` and `GST_DEBUG_NO_COLOR=1`, passing `NOVA_WEBKIT_FEATURES` through, with stderr to `browser.stderr`.
+    *   After exit: write the user journal of `xdg-desktop-portal` and `xdg-desktop-portal-hyprland` since the start time to `portal.log`. Copy that day's `~/.local/state/novabrowser-webkit/memlog/<date>.log` lines from the call window to `memlog.txt`, if the file exists. Copy `result-template.md` to `result.md`.
+
+#### 10. `spikes/w20-calls/RESULTS.md` (Create)
+
+*   **Type / Scope**: spike results, committed.
+*   **Proposed Changes**:
+    *   A table with one row per run: date, site, entry point, user agent, features, camera, microphone, screen, screen audio, call length, bundle name, pass or fail, cause.
+    *   The answers to Q1-Q5.
+    *   A section `## Phase B changes required`, listing: features to ship (or "none"), per-site defaults (or "none"), codec packages (or "none"), build flags (or "none").
+
+#### 11. `../novabrowser/nova-core/src/settings.rs` (Modify; step 6)
 
 *   **Type / Scope**: settings schema.
-*   **Proposed Changes**: add `("webkit.features", "list", false, <default>, &[])` next to `webkit.itp` (line 17). `<default>` is the JSON list from `RESULTS.md`, or `[]`. The comment above the `webkit.*` block (line 15) already marks these as WebKit-only. Extend the existing `other_edition` test (line 177) with `webkit.features`.
+*   **Proposed Changes**: add `("webkit.features", "list", false, <default>, &[])` next to `webkit.itp` (line 17). Here `false` is `none_ok`, and `<default>` is the JSON list from `RESULTS.md`. Extend the test `cef_edition_refuses_webkit_settings` (line 177) with `webkit.features`.
 
-#### 7. `../novabrowser/nova-core/src/config.rs` (Modify, conditional: only if a per-site default is needed)
+#### 12. `../novabrowser/nova-core/src/config.rs` (Modify; step 7)
 
 *   **Type / Scope**: config lookup.
 *   **Proposed Changes**:
-    *   A constant `BUILTIN_PATTERNS: &[(&str /*url pattern*/, &str /*setting*/, &str /*JSON value*/)]`, parsed once with the existing `UrlPattern` type. Contents come from `RESULTS.md` (for example `("*://*.zoom.us/*", "content.user_agent", "\"<ua>\"")`), or empty.
-    *   `get_for` (line 131) checks, in order: runtime `:set -u` patterns, `config.ts` patterns, then built-in patterns, then `self.get(name)`.
-    *   A built-in pattern applies only if the user has not set that setting globally (in `config.ts` or `autoconfig.json`). Otherwise a user's global `content.user_agent = "webkit"` would lose to a shipped per-site value. This needs a way to ask "did the user set this name?"; if `Config` has none, add `fn user_set(&self, name) -> bool` from the same maps `get` reads.
-    *   Unit tests: built-in applies on a matching URL with no user value; a `config.ts` pattern beats it; a `:set -u` value beats it; a user global value beats it; a non-matching URL gets the normal value.
+    *   A constant list of built-in patterns `(url pattern, setting, JSON value)` from `RESULTS.md`, parsed once with the existing `UrlPattern`.
+    *   `get_for` (line 131) follows the lookup order in B3.
+    *   "User global value" means the runtime `:set` map (`runtime`, line 32), `in_config_ts` (lines 118-120) or the saved `autoconfig.json` values (`SAVED`, line 39). It does not include the theme preset or the schema defaults. Extend `in_config_ts` into a helper that checks all three, rather than adding a separate one.
+    *   Unit tests: a built-in value applies on a matching URL; a `config.ts` pattern beats it; a `:set -u` value beats it; a `config.ts` global beats it; a runtime `:set` global beats it; a non-matching URL gets the normal value.
 
-#### 8. `../novabrowser/nova-core` commit and push (conditional on 6 or 7)
+#### 13. nova-core commit and push (step 6 or 7; not a file)
 
-*   **Type / Scope**: release step, not a file.
-*   **Proposed Changes**: `cargo test` in nova-core green, commit `config: webkit.features + built-in per-site defaults`, push to `Novaturiente/nova-core`. The CEF edition is not moved to the new rev here (its own repo, C4).
+*   **Type / Scope**: release step.
+*   **Proposed Changes**: nova-core `cargo test` green; commit naming what was added (`webkit.features`, built-in per-site defaults, or both); push to `Novaturiente/nova-core`. The CEF edition stays on its current pin.
 
-#### Phase B: this repo
-
-#### 9. `Cargo.toml`, `Cargo.lock` (Modify, conditional on 8)
+#### 14. `Cargo.toml`, `Cargo.lock` (Modify; step 6 or 7)
 
 *   **Type / Scope**: dependency pin.
-*   **Proposed Changes**: `nova-core` `rev` (line 18) moves to the commit from step 8; `cargo update -p nova-core`; `cargo metadata --locked` passes.
+*   **Proposed Changes**: `nova-core` `rev` (line 18) moves to the step 13 commit; `cargo update -p nova-core`; `cargo metadata --locked` passes.
 
-#### 10. `src/permissions.rs` (Modify)
-
-*   **Type / Scope**: permission mapping (B1).
-*   **Proposed Changes**:
-    *   New pure function `media_wanted(audio: bool, video: bool, display: bool) -> Vec<(&'static str, &'static str)>` that returns the table in the Technical Plan. With display true it returns only `("content.desktop_capture", "capture your screen")`, or `"capture your screen and its sound"` when audio is also true.
-    *   `wanted()` (line 134) reads `display` with one `unsafe` call to `webkit6::ffi::webkit_user_media_permission_is_for_display_device(m.to_glib_none().0)`, commented with why (no safe binding in `webkit6` 0.6.1), and calls `media_wanted`.
-    *   The `DeviceInfoPermissionRequest` rule (lines 163-171) stays: device labels follow the camera/mic setting, never `content.desktop_capture`.
-    *   Unit test `media_wanted_cases`: each table row, plus "display with audio never asks for the microphone setting".
-
-#### 11. `src/web.rs` (Modify, conditional)
-
-*   **Type / Scope**: page settings (B2, only if file 6 is built) and the no-WebRTC check (B4, only if A2 says stock has no WebRTC). If neither applies, this file is not changed.
-*   **Proposed Changes**:
-    *   In `page_settings()` (line 208): replace the single `ColorFilter` lookup (lines 238-242) with one pass over `all_features()` that turns on `ColorFilter` plus each name in `webkit.features`, and turns off names given as `!Name`. Names not found are collected and printed once per process to stderr as `novabrowser: webkit.features: unknown feature <name>`. `ColorFilter` stays hard-coded on (dark mode needs it, D6).
-    *   **Conditional (A2 says stock has no WebRTC):** a page-world user script, top frame only, on the hosts `meet.google.com`, `teams.microsoft.com`, `teams.live.com`, `*.zoom.us` (via the user script's allow list), that posts `nortc` through the existing `nova` handler when `window.RTCPeerConnection` is undefined. Same pattern as `MEDIA_JS` (lines 28-39).
-
-#### 12. `src/tabview.rs` (Modify, conditional on A2)
-
-*   **Type / Scope**: page message handling.
-*   **Proposed Changes**: next to the `"media"` arm (line 314), a `"nortc"` arm that shows the message "This WebKit build has no WebRTC: calls need webkitgtk-6.0-nova" once per tab per load.
-
-#### 13. `tests/features.sh` (Modify, conditional on file 6)
+#### 15. `tests/features.sh` (Modify; step 6)
 
 *   **Type / Scope**: IPC feature test.
-*   **Proposed Changes**: two checks: `:set webkit.features '["NoSuchFeature"]'` then `open -t data:...` loads (unknown names don't break views) and stderr has the `unknown feature NoSuchFeature` line; `:set webkit.features` back to default.
+*   **Proposed Changes**: one check plus a reset:
+    *   `--cmd 'set webkit.features ["NoSuchFeature"]'`, then `--cmd 'open -t data:text/html,<title>f</title>'`.
+    *   Pass if the tab's title becomes `f` and the browser stderr (`$tmp/stderr`, `tests/lib.sh:18`) has `unknown WebKit feature NoSuchFeature`.
+    *   Then `--cmd 'set webkit.features []'`.
 
-#### 14. `tests/smoke.sh` (No change)
+#### 16. `spikes/wk-build/build.sh` (Modify; step 9)
 
-*   **Type / Scope**: listed so it is run, not edited. It already checks the geolocation prompt path that `wanted()` shares.
+*   **Type / Scope**: nova WebKit build flags (engine build).
+*   **Proposed Changes**: add the `-D ENABLE_...=ON` flags `RESULTS.md` names, next to the WebRTC flags (line 41). Rebuild on novahome. Speedometer A/B against 2.54.2-4 into `spikes/w9-baseline/ab-nova5.jsonl`. Then do file 3's rebuild part.
 
-#### 15. `spikes/wk-build/build.sh` (Modify, conditional on ladder step 6)
-
-*   **Type / Scope**: WebKit build flags.
-*   **Proposed Changes**: add the `-D ENABLE_...=ON` flags the spike names, next to the WebRTC flags (line 39). Rebuild on novahome; Speedometer A/B vs 2.54.2-4 into `spikes/w9-baseline/ab-nova5.jsonl`.
-
-#### Phase B: packaging
-
-#### 16. `packaging/aur/webkitgtk-6.0-nova-bin/PKGBUILD` (Modify)
-
-*   **Type / Scope**: AUR binary package.
-*   **Proposed Changes**: move `gst-plugins-bad` and `libnice` from `optdepends` (lines 24-25) to `depends`. Add `gst-plugin-pipewire: screen sharing on Wayland` to `optdepends`. Bump `pkgrel` to 5. `_tag` (line 30) is built from `$pkgrel`, so pin it to the existing `webkitgtk-6.0-nova-2.54.2-4` asset; a dependency-only change must not need a new 300 MB upload.
-
-#### 17. `packaging/PKGBUILD`, `packaging/aur/novabrowser-webkit/PKGBUILD`, `packaging/aur/novabrowser-webkit-bin/PKGBUILD` (Modify)
-
-*   **Type / Scope**: browser packages (-git, tag, -bin).
-*   **Proposed Changes**: add to `optdepends`: `'gst-plugin-pipewire: screen sharing on Wayland'`, `'xdg-desktop-portal: screen sharing (with a backend: xdg-desktop-portal-hyprland, -gnome or -kde)'`, and any codec packages `RESULTS.md` names (for example `'gst-plugins-ugly: H.264 encoding for calls'`). Change the `webkitgtk-6.0-nova-bin` line to `'webkitgtk-6.0-nova-bin: video calls (WebRTC), dark mode, PGO'` if A2 shows stock has no WebRTC. These ship with the next browser release via `packaging/release.sh` (no change to it).
-
-#### Phase B: docs and project state
-
-#### 18. `docs/user/settings.md` (Modify)
+#### 17. `docs/user/settings.md` (Modify, step 10)
 
 *   **Type / Scope**: user settings reference.
-*   **Proposed Changes**: only if file 6 is built: new `### webkit.features` entry (what it does, `!` to turn off, unknown names logged, example), and, only if file 7 is built, a note listing the built-in per-site defaults. Always: `### content.desktop_capture` (line 161): screen sharing is now always asked on its own and never follows the microphone answer.
+*   **Proposed Changes**:
+    *   `### content.desktop_capture` (line 161): screen sharing is asked on its own, never follows the microphone or camera answer, and offers no "Always".
+    *   **Step 6 only:** a `### webkit.features` entry: what it does, `!` to turn a feature off, global only, new tabs only, unknown names logged.
+    *   **Step 7 only:** a list of the built-in per-site defaults, and that any user value overrides them.
 
-#### 19. `docs/user/privacy.md` (Modify)
+#### 18. `docs/user/privacy.md` (Modify, step 10)
 
 *   **Type / Scope**: user privacy doc.
-*   **Proposed Changes**: in the permissions part, one paragraph: screen capture is its own permission; a saved mic or camera answer never covers it.
+*   **Proposed Changes**: one paragraph in the permissions part: screen capture is its own permission, a saved microphone or camera answer never covers it, and it can't be allowed permanently.
 
-#### 20. `docs/user/troubleshooting.md` (Modify)
+#### 19. `docs/user/troubleshooting.md` (Modify, step 10)
 
 *   **Type / Scope**: user troubleshooting.
-*   **Proposed Changes**: a "Video calls" section: needs `webkitgtk-6.0-nova-bin` (if stock has no WebRTC), `gst-plugin-pipewire`, a portal backend; how to collect logs with `GST_DEBUG` / `GST_DEBUG_FILE` and the portal journal; how to try another user agent per site with `:set -u`.
+*   **Proposed Changes**: a "Video calls" section:
+    *   needed packages (`webkitgtk-6.0-nova-bin` if stock has no WebRTC, `gst-plugin-pipewire`, a portal backend);
+    *   how to collect logs (`GST_DEBUG` to stderr, the portal journal);
+    *   how to try another user agent per site with `:set -u`;
+    *   screen audio, if G7 found it unsupported.
 
-#### 21. `docs/manual-test.md` (Modify)
+#### 20. `docs/manual-test.md` (Modify, step 10)
 
 *   **Type / Scope**: manual test list.
-*   **Proposed Changes**: rows for CUJ 1-3: Zoom, Meet, Teams call with camera, mic and screen share from a phone as far side; CUJ 2's "mic allowed, screen still asks" row.
+*   **Proposed Changes**: rows for CUJ 1-3: Zoom 10 minutes, Meet 10 minutes, Teams 5 minutes, each with camera, microphone and screen share, and a phone as the far side. Plus CUJ 2's row: microphone allowed, screen still asks, with no "Always".
 
-#### 22. `docs/feature-map.md` (Modify, conditional on file 6 or 7)
+#### 21. `docs/feature-map.md` (Modify; step 11)
 
 *   **Type / Scope**: CEF vs WebKit differences.
-*   **Proposed Changes**: one line: `webkit.features` is WebKit-only; built-in per-site defaults live in nova-core and apply to both editions.
+*   **Proposed Changes**: one line per built item: `webkit.features` is WebKit-only; built-in per-site defaults live in nova-core and apply to both editions.
 
-#### 23. `PROGRESS.md` (Modify)
+#### 22. `PROGRESS.md` (Modify, step 10)
 
 *   **Type / Scope**: project state (AGENTS.md session rule).
-*   **Proposed Changes**: new Phase 0 item `W20 calls (Zoom, Meet, Teams + screen share)` with its pass condition (G1, G2) and evidence; update W16 and 7.15 (screen capture permission); dated decisions (shipped settings in nova-core, display-capture mapping); session log entry in IST; new "Now".
+*   **Proposed Changes**:
+    *   A new Phase 0 item `W20 calls (Zoom, Meet, Teams + screen share)`, with pass conditions G1 and G2 and its evidence.
+    *   Updates to W16 and 7.15 (screen-capture permission).
+    *   Dated decisions (shipped settings in nova-core; screen prompt without "Always"; spike switch is an environment variable).
+    *   A session-log entry in IST, and the next "Now".
 
 ### Verification Plan
 
-*   **Compilation/Build**: `cargo build --release` (no warnings); in nova-core `cargo build`; spike `cargo build` in `spikes/w20-calls/`.
-*   **Unit Tests**: `cargo test --workspace` here (new `media_wanted_cases`); `cargo test` in nova-core when files 6-7 are built (new built-in pattern tests, `other_edition` case).
-*   **Static Analysis & Linting**: `cargo clippy --workspace` with no new warnings; `bash -n` on the two spike scripts; `makepkg --printsrcinfo` succeeds for all four PKGBUILDs.
-*   **Test Coverage Requirement**: every row of the B1 mapping table and every `get_for` precedence case has a unit test.
-*   **E2E/Integration**: `tests/smoke.sh`, `tests/features.sh` (with the new checks when file 13 is built) and `tests/passwords.sh` all pass on the release build (pinned to the new nova-core rev when file 9 is built).
-*   **Manual (owner)**: CUJ 1-3 pass with a phone as the far side, each with a log bundle; CUJ 2 shows a separate screen prompt on a site with a saved mic "allow"; one call lasts 30 minutes (G1). Results recorded in `spikes/w20-calls/RESULTS.md` and `docs/manual-test.md`.
+*   **Checkpoint after steps 1-3 (step 4):**
+    *   `cargo build --release` and `cargo clippy --workspace`, with no new warnings.
+    *   `cargo test --workspace`, including `media_wanted_cases`.
+    *   `tests/smoke.sh`.
+    *   `makepkg --printsrcinfo` for all four PKGBUILDs.
+*   **Spike (step 5):**
+    *   `bash -n` on `call.sh` and `stock-webrtc.sh`.
+    *   `cargo build` in `spikes/w20-calls/`.
+    *   The first Meet bundle shows `webrtcbin` lines from the web process.
+*   **After steps 6-7, only if built:**
+    *   `cargo test` in nova-core: built-in pattern tests and the extended edition test.
+    *   Here, after the pin bump: build, `cargo test --workspace`, then `tests/smoke.sh`, `tests/features.sh` (with file 15) and `tests/passwords.sh`.
+*   **Before release:** `tests/smoke.sh`, `tests/features.sh` and `tests/passwords.sh` all pass on the release build. A grep for `NOVA_WEBKIT_FEATURES` in `src/` finds nothing.
+*   **Manual (owner):**
+    *   CUJ 1-3 pass with a phone as the far side, each with a bundle: Zoom 10 minutes, Meet 10 minutes, Teams 5 minutes.
+    *   CUJ 2 shows a separate screen prompt with no "Always" on a site with a saved microphone answer.
+    *   Results go in `spikes/w20-calls/RESULTS.md` and `docs/manual-test.md`.
+*   **Rollback per phase:**
+    *   Phase 0: revert its commit, and set `pkgrel` back to 4.
+    *   Phase B: revert the pin-bump commit here, and the nova-core commit there.
 
 --------------------------------------------------------------------------------
 
