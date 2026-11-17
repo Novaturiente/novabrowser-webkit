@@ -976,6 +976,7 @@ pub fn state_json() -> String {
             "suggestions": crate::passwords::suggestions(),
             // on-screen size of the tooltip/password popup while shown
             "popup": s.chrome.as_ref().and_then(|c| c.suggest.shown_size().or_else(|| c.tip.shown_size())).map(|(w, h)| [w, h]),
+            "menu": s.chrome.as_ref().is_some_and(|c| c.menu.is_shown()),
             "fullscreen": s.window.as_ref().is_some_and(|w| w.is_fullscreen()),
             "active": s.active,
             "url": s.tabs.get(s.active).map(|t| t.url.as_str()),

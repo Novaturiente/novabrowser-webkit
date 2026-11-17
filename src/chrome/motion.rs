@@ -102,6 +102,11 @@ mod imp {
     impl WidgetImpl for Pop {
         fn measure(&self, o: gtk::Orientation, for_size: i32) -> (i32, i32, i32, i32) {
             match self.child.borrow().as_ref() {
+                // overlays ask for height with no width: answer for the natural width, or a
+                // wrapping label reports its height at its narrowest (one char per line)
+                Some(c) if o == gtk::Orientation::Vertical && for_size < 0 => {
+                    c.measure(o, c.measure(gtk::Orientation::Horizontal, -1).1)
+                }
                 Some(c) => c.measure(o, for_size),
                 None => (0, 0, -1, -1),
             }

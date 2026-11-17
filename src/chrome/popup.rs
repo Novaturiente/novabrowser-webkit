@@ -106,8 +106,6 @@ impl Tip {
         url.set_xalign(0.0);
         url.set_wrap(true);
         url.set_wrap_mode(gtk::pango::WrapMode::Char);
-        url.set_lines(4);
-        url.set_ellipsize(gtk::pango::EllipsizeMode::End);
         let card = card(None);
         card.append(&title);
         card.append(&url);
@@ -120,7 +118,11 @@ impl Tip {
     }
     pub fn show(&self, title: &str, url: &str) {
         self.title.set_text(title);
-        self.url.set_text(url);
+        // at most ~4 wrapped lines (a label's `lines` + ellipsize reserves all 4 in its height)
+        match url.char_indices().nth(240) {
+            Some((i, _)) => self.url.set_text(&format!("{}…", &url[..i])),
+            None => self.url.set_text(url),
+        }
         // a label has no max width in pixels: past TIP_W, pin the card to TIP_W and let
         // the labels ask for nothing so they ellipsize / wrap inside it
         let labels = [&self.title, &self.url];
