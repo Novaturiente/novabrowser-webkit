@@ -640,8 +640,9 @@ pub fn show(n: usize) {
             st.set_visible_child(&view);
         }
     }
-    // qutebrowser leaves insert/passthrough when the tab changes
-    if modes::mode() != Mode::Command {
+    // qutebrowser leaves insert/passthrough when the tab changes; an open prompt (any tab's)
+    // keeps prompt mode, else it stays on screen but y/n/A/N go to normal mode (8.27)
+    if !matches!(modes::mode(), Mode::Command | Mode::Prompt) {
         modes::enter(Mode::Normal);
         focus_active();
     }

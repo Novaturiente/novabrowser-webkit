@@ -111,6 +111,12 @@ pub fn init(data: &std::path::Path, cache: &std::path::Path) {
     let adblock = crate::adblock::dir();
     let _ = std::fs::create_dir_all(&adblock);
     pages.add_path_to_sandbox(&adblock, true);
+    // cameras: WebKit captures in the web process, whose sandbox has no PipeWire socket
+    // (mic works through pulse); W20 probe: no videoinput without this
+    let pw = glib::user_runtime_dir().join("pipewire-0");
+    if pw.exists() {
+        pages.add_path_to_sandbox(&pw, true);
+    }
     pages.connect_initialize_notification_permissions(crate::permissions::init_notifications);
     pages.connect_initialize_web_process_extensions(|c| {
         c.set_web_process_extensions_initialization_user_data(
