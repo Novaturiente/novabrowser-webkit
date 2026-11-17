@@ -27,6 +27,10 @@ in `docs/feature-map.md`, module reuse in `docs/porting.md`, state in
   from novabrowser are WebKit rewrites and carry no source header; a file copied
   verbatim keeps `// from novabrowser <commit> src/<file>` on line 1.
 - `../qutebrowser` (if present) is read-only reference (GPL-3.0).
+- `../epiphany` (https://github.com/GNOME/epiphany, GPL-3.0) is the
+  read-only reference for how a WebKitGTK browser drives WebKit: settings,
+  user agent, permissions, sandbox paths, media. Check it before inventing
+  WebKit handling; differ from it only for a stated reason. Never copy code.
 - Anything injected into every frame gets a Speedometer A/B before it ships.
 - No CDP here: automated checks use the IPC socket (`--cmd`, `--query`) and
   real keys (`wtype` / compositor `send_shortcut`).
