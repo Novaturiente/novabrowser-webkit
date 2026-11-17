@@ -204,6 +204,16 @@ pub fn user_agent_for(url: &str) -> Option<String> {
     }
 }
 
+/// Unknown WebKit feature name: said once per name per process.
+fn warn_unknown_feature(name: &str) {
+    static SEEN: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+    let mut seen = SEEN.lock().unwrap();
+    if !seen.iter().any(|n| n == name) {
+        seen.push(name.to_string());
+        eprintln!("novabrowser: unknown WebKit feature {name}");
+    }
+}
+
 /// Web page settings from config (`fonts.web.*`, `content.*`, `webkit.*`).
 fn page_settings() -> Settings {
     let cfg = config::get();
@@ -234,10 +244,22 @@ fn page_settings() -> Settings {
     s.set_enable_webrtc(true);
     s.set_enable_media_stream(true);
     s.set_enable_encrypted_media(false); // D9: no DRM
-    // `-apple-color-filter` for dark mode (darkmode.rs); inert until a style sets it
     if let Some(all) = Settings::all_features() {
-        if let Some(f) = (0..all.length()).filter_map(|i| all.get(i)).find(|f| f.identifier().as_deref() == Some("ColorFilter")) {
-            s.set_feature_enabled(&f, true);
+        let feats: Vec<_> = (0..all.length()).filter_map(|i| all.get(i)).collect();
+        let find = |n: &str| feats.iter().find(|f| f.identifier().as_deref() == Some(n));
+        // shortcut: spike-only switch for the calls spike (docs/designs/video-calls.md),
+        // "Name,!Other"; replaced by the webkit.features setting or removed before release
+        for item in std::env::var("NOVA_WEBKIT_FEATURES").unwrap_or_default().split(',') {
+            let (name, on) = item.trim().strip_prefix('!').map_or((item.trim(), true), |n| (n, false));
+            match find(name) {
+                Some(f) => s.set_feature_enabled(f, on),
+                None if !name.is_empty() => warn_unknown_feature(name),
+                None => {}
+            }
+        }
+        // `-apple-color-filter` for dark mode (darkmode.rs); inert until a style sets it
+        if let Some(f) = find("ColorFilter") {
+            s.set_feature_enabled(f, true);
         }
     }
     if let Some(ua) = user_agent_for("") {

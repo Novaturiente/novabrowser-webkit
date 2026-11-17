@@ -134,17 +134,18 @@ pub fn init_notifications(ctx: &webkit6::WebContext) {
 fn wanted(req: &PermissionRequest) -> Option<Vec<(&'static str, &'static str)>> {
     use webkit6::*;
     if let Some(m) = req.downcast_ref::<UserMediaPermissionRequest>() {
-        let mut v = Vec::new();
-        if m.is_for_audio_device() {
-            v.push(("content.media.audio_capture", "use your microphone"));
-        }
-        if m.is_for_video_device() {
-            v.push(("content.media.video_capture", "use your camera"));
-        }
-        if v.is_empty() {
-            v.push(("content.desktop_capture", "capture your screen"));
-        }
-        return Some(v);
+        let (audio, video) = (m.is_for_audio_device(), m.is_for_video_device());
+        let display = webkit6::functions::user_media_permission_is_for_display_device(m);
+        let v = media_wanted(audio, video, display);
+        let to: Vec<_> = v.iter().map(|w| w.0).collect();
+        eprintln!(
+            "novabrowser: media request audio={} video={} display={} -> {}",
+            audio as u8,
+            video as u8,
+            display as u8,
+            if to.is_empty() { "deny".to_string() } else { to.join(",") }
+        );
+        return (!v.is_empty()).then_some(v);
     }
     let one = if req.is::<GeolocationPermissionRequest>() {
         ("content.geolocation", "see your location")
@@ -163,6 +164,27 @@ fn wanted(req: &PermissionRequest) -> Option<Vec<(&'static str, &'static str)>> 
         return None; // media keys (D9: no DRM), XR
     };
     Some(vec![one])
+}
+
+/// Media request flags -> (setting, prompt words), as the CEF edition's `MEDIA_BITS`.
+/// A screen request is asked only under `content.desktop_capture`, never under a saved
+/// microphone/camera answer; no flags at all = unknown request, denied.
+fn media_wanted(audio: bool, video: bool, display: bool) -> Vec<(&'static str, &'static str)> {
+    let mut v = Vec::new();
+    if display {
+        v.push(("content.desktop_capture", "capture your screen"));
+        if audio {
+            v.push(("content.desktop_capture", "capture your screen audio"));
+        }
+        return v;
+    }
+    if audio {
+        v.push(("content.media.audio_capture", "use your microphone"));
+    }
+    if video {
+        v.push(("content.media.video_capture", "use your camera"));
+    }
+    v
 }
 
 fn answer(view: usize, cb: &Callback, allow: bool) {
@@ -343,8 +365,9 @@ fn show_later() {
 }
 
 /// The answer buttons for a prompt: [key, label]; keys are what `on_key` takes.
-fn choices(cb: &Callback) -> Vec<[&'static str; 2]> {
-    match cb {
+fn choices(p: &Pending) -> Vec<[&'static str; 2]> {
+    match &p.cb {
+        Callback::Request(_) if !can_always(&p.settings) => vec![["y", "Yes"], ["n", "No"], ["N", "Never"]],
         Callback::Request(_) => vec![["y", "Yes"], ["n", "No"], ["A", "Always"], ["N", "Never"]],
         Callback::Dialog(d, _) if d.dialog_type() == ScriptDialogType::Alert => vec![["y", "OK"]],
         Callback::Hang => vec![["y", "Kill page"], ["n", "Keep waiting"]],
@@ -352,9 +375,14 @@ fn choices(cb: &Callback) -> Vec<[&'static str; 2]> {
     }
 }
 
+/// Screen capture can't be allowed for good (Screen Capture spec: never stored as granted).
+fn can_always(settings: &[&str]) -> bool {
+    !settings.contains(&"content.desktop_capture")
+}
+
 /// Show the oldest open prompt, or leave prompt mode when there is none.
 fn show() {
-    let front = QUEUE.with_borrow(|q| q.front().map(|p| (p.text.clone(), choices(&p.cb))));
+    let front = QUEUE.with_borrow(|q| q.front().map(|p| (p.text.clone(), choices(p))));
     let text = front.as_ref().map(|f| f.0.clone());
     SHOWN.with_borrow_mut(|s| {
         if s.0 != text {
@@ -389,6 +417,9 @@ pub fn on_key(name: &str) {
         _ => return,
     };
     if name != "Escape" && !grace_over(SHOWN.with_borrow(|s| s.1)) {
+        return;
+    }
+    if name == "A" && QUEUE.with_borrow(|q| q.front().is_some_and(|p| !can_always(&p.settings))) {
         return;
     }
     let Some(p) = QUEUE.with_borrow_mut(|q| q.pop_front()) else {
@@ -442,6 +473,31 @@ mod tests {
         assert!(!grace_over(Some(Instant::now())));
         assert!(grace_over(Instant::now().checked_sub(Duration::from_secs(1))));
         assert!(grace_over(None));
+    }
+
+    #[test]
+    fn media_wanted_cases() {
+        let s = |v: Vec<(&'static str, &'static str)>| v.into_iter().map(|w| w.0).collect::<Vec<_>>();
+        let screen = ["content.desktop_capture"];
+        assert_eq!(s(media_wanted(false, false, true)), screen);
+        assert_eq!(s(media_wanted(false, true, true)), screen);
+        // display with audio: screen audio words, never the microphone setting
+        let both = media_wanted(true, true, true);
+        assert!(both.iter().all(|w| w.0 == "content.desktop_capture"));
+        assert_eq!(both[1].1, "capture your screen audio");
+        assert_eq!(s(media_wanted(true, false, false)), ["content.media.audio_capture"]);
+        assert_eq!(s(media_wanted(false, true, false)), ["content.media.video_capture"]);
+        assert_eq!(
+            s(media_wanted(true, true, false)),
+            ["content.media.audio_capture", "content.media.video_capture"]
+        );
+        assert!(media_wanted(false, false, false).is_empty());
+    }
+
+    #[test]
+    fn screen_prompt_offers_no_always() {
+        assert!(!can_always(&["content.desktop_capture"]));
+        assert!(can_always(&["content.media.audio_capture", "content.media.video_capture"]));
     }
 
     #[test]
