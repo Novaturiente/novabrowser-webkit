@@ -1506,6 +1506,9 @@ fn popup_at(w: &gtk::Widget, x: i32, y: i32) {
             .as_ref()
             .map_or((0, 0), |r| (r.width(), r.height()))
     });
+    // measure without the last placement's margins (GTK adds a widget's own margins)
+    w.set_margin_start(0);
+    w.set_margin_top(0);
     let (_, nw, _, _) = w.measure(gtk::Orientation::Horizontal, -1);
     let (_, nh, _, _) = w.measure(gtk::Orientation::Vertical, nw);
     w.set_margin_start(x.min(ww - nw - 4).max(4));
