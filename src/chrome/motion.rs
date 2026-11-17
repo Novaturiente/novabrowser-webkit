@@ -23,8 +23,8 @@ pub fn layout() -> adw::SpringParams {
 }
 
 /// Run a spring on `widget` from `from` to `to`, calling `on_value` every frame. The
-/// returned animation is already playing; keep it to `skip()` or retarget. Skipped at
-/// once when animations are off or `widget` is unmapped (libadwaita does that).
+/// returned animation is playing (or starts once `widget` is mapped); keep it to
+/// pause or retarget. Skipped at once when animations are off.
 pub fn spring(
     widget: &impl IsA<gtk::Widget>,
     from: f64,
@@ -32,10 +32,30 @@ pub fn spring(
     params: adw::SpringParams,
     on_value: impl Fn(f64) + 'static,
 ) -> adw::SpringAnimation {
-    let target = adw::CallbackAnimationTarget::new(on_value);
+    let on_value = std::rc::Rc::new(on_value);
+    let f = on_value.clone();
+    let target = adw::CallbackAnimationTarget::new(move |v| f(v));
     let a = adw::SpringAnimation::new(widget, from, to, params, target);
     a.set_clamp(false);
-    a.play();
+    if widget.is_mapped() {
+        a.play();
+    } else {
+        // libadwaita skips straight to the end on an unmapped widget, and a widget just
+        // made visible maps only on the next layout: start from `from`, play once mapped
+        on_value(from);
+        let id: std::rc::Rc<RefCell<Option<glib::SignalHandlerId>>> = Default::default();
+        // strong: fade() keeps no handle; the handler disconnects itself on map
+        let (a2, id2) = (a.clone(), id.clone());
+        let w = widget.upcast_ref::<gtk::Widget>().clone();
+        *id.borrow_mut() = Some(w.connect_map(move |w| {
+            if let Some(h) = id2.take() {
+                w.disconnect(h);
+            }
+            if a2.state() == adw::AnimationState::Idle {
+                a2.play();
+            }
+        }));
+    }
     a
 }
 
