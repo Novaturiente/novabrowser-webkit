@@ -2172,7 +2172,7 @@ dependencies = [
 
 [[package]]
 name = "novabrowser-webkit"
-version = "0.1.18"
+version = "0.1.19"
 dependencies = [
  "adblock",
  "base64 0.22.1",
@@ -2192,7 +2192,7 @@ dependencies = [
 
 [[package]]
 name = "novabrowser-webkit-ext"
-version = "0.1.18"
+version = "0.1.19"
 dependencies = [
  "adblock",
  "nova-core",
