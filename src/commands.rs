@@ -182,8 +182,9 @@ fn open_in(url: &str, cmd: &Cmd) -> Result<(), String> {
     Ok(())
 }
 
-/// `dark-toggle`: flip dark mode for this host now, and remember it in
-/// `<config>/darkmode_excludes` (the file config.ts reads with `readLines`).
+/// `dark-toggle`: flip dark mode for this host now, and remember it in the file config.ts
+/// reads with `readLines`: `<config>/darkmode_excludes` (hosts kept light) while dark mode
+/// is on everywhere, else `<config>/darkmode_sites` (hosts made dark).
 fn dark_toggle() -> Result<(), String> {
     const D: &str = "colors.webpage.darkmode.enabled";
     let (url, _) = window::active_url_title();
@@ -191,7 +192,10 @@ fn dark_toggle() -> Result<(), String> {
     if host.is_empty() {
         return Err("no host for this page".into());
     }
-    let file = config::path().with_file_name("darkmode_excludes");
+    let cfg = config::get();
+    let default = cfg.get(D).as_bool().unwrap_or(false);
+    let name = if default { "darkmode_excludes" } else { "darkmode_sites" };
+    let file = config::path().with_file_name(name);
     let mut lines: Vec<String> = std::fs::read_to_string(&file)
         .unwrap_or_default()
         .lines()
@@ -199,9 +203,9 @@ fn dark_toggle() -> Result<(), String> {
         .filter(|l| !l.is_empty())
         .map(str::to_string)
         .collect();
-    let cfg = config::get();
     let dark = !cfg.get_for(D, &url).as_bool().unwrap_or(false);
-    if dark {
+    // the file lists the hosts that differ from the global setting
+    if dark == default {
         lines.retain(|l| *l != host);
     } else if !lines.contains(&host) {
         lines.push(host.clone());
