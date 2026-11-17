@@ -266,10 +266,6 @@ impl Palette {
         self.0.pop.conceal(|| {});
     }
 
-    pub fn is_shown(&self) -> bool {
-        self.0.pop.is_shown()
-    }
-
     /// Completion / history: replace the text, cursor at the end, not reported as typed.
     pub fn set_text(&self, text: &str) {
         self.0.show(text);
