@@ -255,6 +255,7 @@ fn page_settings() -> Settings {
         let find = |n: &str| feats.iter().find(|f| f.identifier().as_deref() == Some(n));
         // shortcut: spike-only switch for the calls spike (docs/designs/video-calls.md),
         // "Name,!Other"; replaced by the webkit.features setting or removed before release
+        s.set_enable_write_console_messages_to_stdout(std::env::var_os("NOVA_CONSOLE").is_some());
         for item in std::env::var("NOVA_WEBKIT_FEATURES").unwrap_or_default().split(',') {
             let (name, on) = item.trim().strip_prefix('!').map_or((item.trim(), true), |n| (n, false));
             match find(name) {

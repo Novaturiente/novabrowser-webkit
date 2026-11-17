@@ -17,8 +17,9 @@ start=$(date '+%F %T')
   echo "NOVA_WEBKIT_FEATURES=${NOVA_WEBKIT_FEATURES:-}"
 } > "$dir/env.txt"
 # no GST_DEBUG_FILE: every process (sandboxed web processes too) writes to inherited stderr
-GST_DEBUG='webrtc*:4,pipewire*:4,nice:3,webkit*:4' GST_DEBUG_NO_COLOR=1 \
-  "$bin" --profile calls "$url" 2> "$dir/browser.stderr"
+# NOVA_CONSOLE: page console messages (Meet/Zoom's own JS errors) to stdout -> console.log
+NOVA_CONSOLE=1 GST_DEBUG='webrtc*:4,pipewire*:4,nice:3,webkit*:4' GST_DEBUG_NO_COLOR=1 \
+  "$bin" --profile calls "$url" > "$dir/console.log" 2> "$dir/browser.stderr"
 echo "browser exit: $?" >> "$dir/env.txt"
 journalctl --user --since "$start" -u xdg-desktop-portal -u xdg-desktop-portal-hyprland \
   --no-pager > "$dir/portal.log" 2>&1
