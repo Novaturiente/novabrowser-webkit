@@ -92,6 +92,7 @@ pub fn connect(view: &WebView) {
         }
         LoadEvent::Committed => {
             window::set_loading(v, true);
+            web::set_painted(v, false);
             crate::darkmode::apply(v);
             crate::zoom::apply(v);
         }
@@ -214,7 +215,7 @@ fn decide(v: &WebView, d: &webkit6::PolicyDecision, kind: PolicyDecisionType) ->
             }
             if kind == PolicyDecisionType::NavigationAction {
                 crate::adblock::on_navigate(v, &url);
-                crate::darkmode::apply_for(v, &url);
+                crate::darkmode::prepare(v, &url);
             }
             false
         }
@@ -311,6 +312,7 @@ pub fn page_message(view: &WebView, text: &str) {
             "focus" if active => modes::on_focus(arg == "1"),
             "pw" => crate::passwords::on_message(view, arg),
             "adblock" => crate::adblock::on_message(view, arg),
+            "painted" => web::set_painted(view, true),
             "media" => {
                 let (code, src) = arg.split_once(' ').unwrap_or((arg, ""));
                 let what = if code == "3" { "can't decode" } else { "can't play (format not supported or not found)" };

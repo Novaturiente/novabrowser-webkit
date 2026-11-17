@@ -37,6 +37,45 @@ const MEDIA_JS: &str = r#"(() => {
   }, true);
 })()"#;
 
+/// Top frame, our world: tells the UI the page is set up (`load`: its scripts and styles ran,
+/// so an app has picked its own background), or 1.5 s after it first painted content, so a
+/// slow plain page doesn't keep its text on the dark background.
+const PAINT_JS: &str = r#"(() => {
+  let sent = false;
+  const send = () => { if (sent) return; sent = true; try { webkit.messageHandlers.nova.postMessage('painted'); } catch (_) {} };
+  addEventListener('load', send, { once: true });
+  new PerformanceObserver((l, o) => { o.disconnect(); setTimeout(send, 1500); }).observe({ type: 'paint', buffered: true });
+})()"#;
+
+/// Behind a page until it is set up (`PAINT_JS`), and under dark mode (Dark Reader's
+/// background): no white flash while a page loads. Then `colors.webpage.bg`, which pages assume.
+const UNPAINTED: &str = "#181a1b";
+
+thread_local! {
+    /// views whose current page painted content
+    static PAINTED: RefCell<std::collections::HashSet<usize>> = RefCell::default();
+}
+
+/// The page painted (`painted` message) or a new one committed (not yet painted).
+pub fn set_painted(view: &WebView, painted: bool) {
+    PAINTED.with_borrow_mut(|p| if painted { p.insert(id(view)) } else { p.remove(&id(view)) });
+    page_bg(view);
+}
+
+/// The view's background for its current state (see `UNPAINTED`).
+pub fn page_bg(view: &WebView) {
+    let painted = PAINTED.with_borrow(|p| p.contains(&id(view)));
+    let bg = if !painted || crate::darkmode::is_on(view) { UNPAINTED.to_string() } else { config::get().str("colors.webpage.bg") };
+    if let Ok(c) = gdk::RGBA::parse(bg.as_str()) {
+        view.set_background_color(&c);
+    }
+}
+
+/// Tab closed: forget its entry.
+pub fn forget(view: &WebView) {
+    PAINTED.with_borrow_mut(|p| p.remove(&id(view)));
+}
+
 /// Focus reports for auto insert mode, all frames, in our world.
 const FOCUS_JS: &str = r#"(() => {
   const ed = (e) => !!e && (e.isContentEditable || (e.tagName === 'INPUT' && !/^(button|checkbox|color|file|hidden|image|radio|range|reset|submit)$/i.test(e.type)) || e.tagName === 'TEXTAREA' || e.tagName === 'SELECT');
@@ -256,6 +295,14 @@ pub fn page_view(related: Option<&WebView>, private: bool) -> WebView {
         &[],
         &[],
     ));
+    ucm.add_script(&UserScript::for_world(
+        PAINT_JS,
+        UserContentInjectedFrames::TopFrame,
+        UserScriptInjectionTime::Start,
+        WORLD,
+        &[],
+        &[],
+    ));
     crate::passwords::add_scripts(&ucm);
     crate::adblock::add_scripts(&ucm);
     crate::passkey::add_scripts(&ucm);
@@ -270,10 +317,7 @@ pub fn page_view(related: Option<&WebView>, private: bool) -> WebView {
             b.web_context(&page_context()).network_session(&session).build()
         }
     };
-    let bg = config::get().str("colors.webpage.bg");
-    if let Ok(c) = gdk::RGBA::parse(bg.as_str()) {
-        view.set_background_color(&c);
-    }
+    page_bg(&view);
     view.set_vexpand(true);
     view.set_hexpand(true);
     crate::passkey::connect(&ucm, &view);

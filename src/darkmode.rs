@@ -72,24 +72,33 @@ fn dark_at(url: &str) -> bool {
 /// The current page after a load commit, a config change or `dark-toggle`.
 pub fn apply(view: &WebView) {
     let url = view.uri().map(|u| u.to_string()).unwrap_or_default();
-    apply_for(view, &url);
+    set(view, dark_at(url.as_str()));
+    web::page_bg(view);
 }
 
-/// Make the view dark iff `url` should be. Adding or removing a user style sheet also
-/// restyles the page already shown, so this switches live.
-pub fn apply_for(view: &WebView, url: &str) {
+/// Before a navigation to `url`: turn dark mode on now, so the new document's first paint is
+/// dark. Turning off waits for the commit (`apply`): here it would flash the old page light.
+pub fn prepare(view: &WebView, url: &str) {
+    if dark_at(url) {
+        set(view, true);
+        web::page_bg(view);
+    }
+}
+
+/// Dark mode on for this view (a page without a background then shows the dark view colour,
+/// which the filter never touches).
+pub fn is_on(view: &WebView) -> bool {
+    ON.with_borrow(|o| o.contains_key(&web::id(view)))
+}
+
+/// Make the view dark iff `want`. Adding or removing a user style sheet also restyles the
+/// page already shown, so this switches live.
+fn set(view: &WebView, want: bool) {
     let id = web::id(view);
-    let want = dark_at(url);
     if want == ON.with_borrow(|o| o.contains_key(&id)) {
         return;
     }
     let Some(ucm) = view.user_content_manager() else { return };
-    // a page without a background shows the view's own (`colors.webpage.bg`), which the filter
-    // never touches: dark grey (= white through the filter) while dark, back to config after
-    let bg = if want { "#333333".to_string() } else { config::get().str("colors.webpage.bg") };
-    if let Ok(c) = gtk::gdk::RGBA::parse(bg.as_str()) {
-        view.set_background_color(&c);
-    }
     if let Some((css, js)) = ON.with_borrow_mut(|o| o.remove(&id)) {
         ucm.remove_style_sheet(&css);
         ucm.remove_script(&js);

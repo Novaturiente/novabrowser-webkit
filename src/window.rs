@@ -677,6 +677,7 @@ pub fn remove(n: usize) {
     if let Some(v) = &tab.view {
         crate::adblock::forget(v);
         crate::darkmode::forget(v);
+        crate::web::forget(v);
         crate::passwords::forget(v);
     }
     drop(tab);
