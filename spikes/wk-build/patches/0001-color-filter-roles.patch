@@ -1,39 +1,235 @@
-diff -ru a/Source/WebCore/style/StyleColorResolver.cpp b/Source/WebCore/style/StyleColorResolver.cpp
---- a/Source/WebCore/style/StyleColorResolver.cpp	2026-10-29 02:32:43.792694044 +0530
-+++ b/Source/WebCore/style/StyleColorResolver.cpp	2026-10-29 02:33:02.373424893 +0530
-@@ -38,6 +38,21 @@
-     return transformedColor;
- }
+diff -ru a/Source/WebCore/rendering/BackgroundPainter.cpp b/Source/WebCore/rendering/BackgroundPainter.cpp
+--- a/Source/WebCore/rendering/BackgroundPainter.cpp	2026-07-24 13:32:55.372362000 +0530
++++ b/Source/WebCore/rendering/BackgroundPainter.cpp	2026-11-17 22:24:54.295948046 +0530
+@@ -193,7 +193,8 @@
+                 shadow.location.y().resolveZoom(zoomFactor),
+             },
+             shadow.blur.resolveZoom(zoomFactor),
+-            colorResolver.colorResolvingCurrentColorApplyingColorFilter(shadow.color),
++            // novabrowser: shadows take Dark Reader's background map (stay dark)
++            colorResolver.colorResolvingCurrentColorApplyingColorFilter(shadow.color, Style::ColorFilterRole::Background),
+             shadow.isWebkitBoxShadow ? ShadowRadiusMode::Legacy : ShadowRadiusMode::Default
+         });
+         break;
+@@ -900,7 +901,7 @@
+             continue;
  
+         Style::ColorResolver colorResolver { style };
+-        auto shadowColor = colorResolver.colorResolvingCurrentColorApplyingColorFilter(shadow.color);
++        auto shadowColor = colorResolver.colorResolvingCurrentColorApplyingColorFilter(shadow.color, Style::ColorFilterRole::Background);
+ 
+         auto shouldInflateBorderRect = [&]() {
+             if (!hasOpaqueBackground)
+diff -ru a/Source/WebCore/rendering/InlineBoxPainter.cpp b/Source/WebCore/rendering/InlineBoxPainter.cpp
+--- a/Source/WebCore/rendering/InlineBoxPainter.cpp	2026-07-24 13:32:55.377841700 +0530
++++ b/Source/WebCore/rendering/InlineBoxPainter.cpp	2026-11-18 00:19:02.650517624 +0530
+@@ -236,7 +236,8 @@
+     auto compositeOp = protect(renderer().document())->compositeOperatorForBackgroundColor(color, renderer());
+ 
+     Style::ColorResolver colorResolver { style };
+-    color = colorResolver.colorApplyingColorFilter(color);
++    // novabrowser: an inline box's background (e.g. <code>) takes the background map
++    color = colorResolver.colorApplyingColorFilter(color, Style::ColorFilterRole::Background);
+ 
+     paintFillLayers(color, style.backgroundLayers(), style.usedZoomForLength(), paintRect, compositeOp);
+     paintBoxShadow(Style::ShadowStyle::Inset, paintRect);
+diff -ru a/Source/WebCore/rendering/RenderTableCell.cpp b/Source/WebCore/rendering/RenderTableCell.cpp
+--- a/Source/WebCore/rendering/RenderTableCell.cpp	2026-07-27 13:58:18.888559300 +0530
++++ b/Source/WebCore/rendering/RenderTableCell.cpp	2026-11-18 00:19:02.650980235 +0530
+@@ -1542,7 +1542,8 @@
+         return;
+ 
+     Style::ColorResolver colorResolver { style };
+-    color = colorResolver.colorApplyingColorFilter(color);
++    // novabrowser: a table cell's background takes the background map
++    color = colorResolver.colorApplyingColorFilter(color, Style::ColorFilterRole::Background);
+ 
+     LayoutPoint adjustedPaintOffset = paintOffset;
+     if (backgroundObject != this)
+diff -ru a/Source/WebCore/style/computed/StyleComputedStyle.cpp b/Source/WebCore/style/computed/StyleComputedStyle.cpp
+--- a/Source/WebCore/style/computed/StyleComputedStyle.cpp	2026-07-27 13:58:18.896559200 +0530
++++ b/Source/WebCore/style/computed/StyleComputedStyle.cpp	2026-11-17 22:24:54.295948046 +0530
+@@ -559,7 +559,7 @@
+         [&](const auto& parts) -> WebCore::Color {
+             Style::ColorResolver colorResolver { *this };
+             if (!appleColorFilter().isNone())
+-                return colorResolver.colorResolvingCurrentColorApplyingColorFilter(parts.track);
++                return colorResolver.colorResolvingCurrentColorApplyingColorFilter(parts.track, ColorFilterRole::Background);
+             return colorResolver.colorResolvingCurrentColor(parts.track);
+         }
+     );
+diff -ru a/Source/WebCore/style/StyleColorResolver.cpp b/Source/WebCore/style/StyleColorResolver.cpp
+--- a/Source/WebCore/style/StyleColorResolver.cpp	2026-07-24 13:32:55.453840300 +0530
++++ b/Source/WebCore/style/StyleColorResolver.cpp	2026-11-18 00:19:23.428597290 +0530
+@@ -33,9 +33,147 @@
+ 
+ WebCore::Color ColorResolver::colorApplyingColorFilter(const WebCore::Color& color) const
+ {
+-    auto transformedColor = color;
+-    m_style->appleColorFilter().transformColor(transformedColor);
+-    return transformedColor;
++    return colorApplyingColorFilter(color, ColorFilterRole::Foreground);
++}
++
++// novabrowser: Dark Reader's dynamic-theme colour maps (MIT, github.com/darkreader/darkreader,
++// src/inject/dynamic-theme/modify-colors.ts: modifyBgHSL, modifyFgHSL, modifyBorderHSL) with
++// its default dark theme (background #181a1b, text #e8e6e3, brightness/contrast 100, no sepia
++// or grayscale, so its final colour matrix is the identity).
++namespace DarkReader {
++
++// double, like Dark Reader's JS numbers (float flips the l < 0.2 / s < 0.24 thresholds)
++struct HSLA { double h, s, l, a; };
++
++static double scale(double x, double inLow, double inHigh, double outLow, double outHigh)
++{
++    return (x - inLow) * (outHigh - outLow) / (inHigh - inLow) + outLow;
++}
++
++static HSLA toHSL(double r, double g, double b, double a)
++{
++    auto [min, max] = std::minmax({ r, g, b });
++    double c = max - min;
++    double l = (max + min) / 2;
++    if (!c)
++        return { 0, 0, l, a };
++    double h = (max == r ? std::fmod((g - b) / c, 6.0) : max == g ? (b - r) / c + 2 : (r - g) / c + 4) * 60;
++    if (h < 0)
++        h += 360;
++    return { h, c / (1 - std::abs(2 * l - 1)), l, a };
++}
++
++static SRGBA<float> fromHSL(const HSLA& x)
++{
++    double c = (1 - std::abs(2 * x.l - 1)) * x.s;
++    double y = c * (1 - std::abs(std::fmod(x.h / 60, 2.0) - 1));
++    double m = x.l - c / 2;
++    double r = 0, g = 0, b = 0;
++    if (x.h < 60) { r = c; g = y; }
++    else if (x.h < 120) { r = y; g = c; }
++    else if (x.h < 180) { g = c; b = y; }
++    else if (x.h < 240) { g = y; b = c; }
++    else if (x.h < 300) { r = y; b = c; }
++    else { r = c; b = y; }
++    auto clamp = [](double v) { return static_cast<float>(std::clamp(v, 0.0, 1.0)); };
++    return { clamp(r + m), clamp(g + m), clamp(b + m), static_cast<float>(x.a) };
++}
++
++static const HSLA& bgPole()
++{
++    static const HSLA pole = toHSL(0x18 / 255.0, 0x1a / 255.0, 0x1b / 255.0, 1);
++    return pole;
++}
++
++static const HSLA& fgPole()
++{
++    static const HSLA pole = toHSL(0xe8 / 255.0, 0xe6 / 255.0, 0xe3 / 255.0, 1);
++    return pole;
++}
++
++static HSLA background(HSLA x)
++{
++    constexpr double maxBgLightness = 0.4;
++    auto& pole = bgPole();
++    bool isDark = x.l < 0.5;
++    bool isBlue = x.h > 200 && x.h < 280;
++    bool isNeutral = x.s < 0.12 || (x.l > 0.8 && isBlue);
++    if (isDark) {
++        double lx = scale(x.l, 0, 0.5, 0, maxBgLightness);
++        if (isNeutral)
++            return { pole.h, pole.s, lx, x.a };
++        return { x.h, x.s, lx, x.a };
++    }
++    double lx = scale(x.l, 0.5, 1, maxBgLightness, pole.l);
++    if (isNeutral)
++        return { pole.h, pole.s, lx, x.a };
++    double hx = x.h;
++    if (x.h > 60 && x.h < 180)
++        hx = x.h > 120 ? scale(x.h, 120, 180, 135, 180) : scale(x.h, 60, 120, 60, 105);
++    // lower the lightness when the result is in the lower yellow spectrum
++    if (hx > 40 && hx < 80)
++        lx *= 0.75;
++    return { hx, x.s, lx, x.a };
++}
++
++static HSLA foreground(HSLA x)
++{
++    constexpr double minFgLightness = 0.55;
++    auto& pole = fgPole();
++    auto blueHue = [](double h) { return scale(h, 205, 245, 205, 220); };
++    bool isLight = x.l > 0.5;
++    bool isNeutral = x.l < 0.2 || x.s < 0.24;
++    bool isBlue = !isNeutral && x.h > 205 && x.h < 245;
++    if (isLight) {
++        double lx = scale(x.l, 0.5, 1, minFgLightness, pole.l);
++        if (isNeutral)
++            return { pole.h, pole.s, lx, x.a };
++        return { isBlue ? blueHue(x.h) : x.h, x.s, lx, x.a };
++    }
++    if (isNeutral)
++        return { pole.h, pole.s, scale(x.l, 0, 0.5, pole.l, minFgLightness), x.a };
++    if (isBlue)
++        return { blueHue(x.h), x.s, scale(x.l, 0, 0.5, pole.l, std::min(1.0, minFgLightness + 0.05)), x.a };
++    return { x.h, x.s, scale(x.l, 0, 0.5, pole.l, minFgLightness), x.a };
++}
++
++static HSLA border(HSLA x)
++{
++    bool isDark = x.l < 0.5;
++    bool isNeutral = x.l < 0.2 || x.s < 0.24;
++    double hx = x.h, sx = x.s;
++    if (isNeutral) {
++        auto& pole = isDark ? fgPole() : bgPole();
++        hx = pole.h;
++        sx = pole.s;
++    }
++    return { hx, sx, scale(x.l, 0, 1, 0.5, 0.2), x.a };
++}
++
++} // namespace DarkReader
++
++// Every `-apple-color-filter` value gets Dark Reader's map for the colour's role (we only ever
++// set `apple-invert-lightness()`). System colours (`CanvasText`, `Field`, ...) are left alone as
++// in WebKit's filter: the browser's dark-mode style also sets `color-scheme: dark`, so they and
++// the natively drawn form controls are already dark. shortcut: inverseTransformColor (pasting
++// into filtered editable content) still undoes WebKit's own matrix, not this map; fix if paste
++// colours matter.
 +WebCore::Color ColorResolver::colorApplyingColorFilter(const WebCore::Color& color, ColorFilterRole role) const
 +{
-+    auto transformedColor = colorApplyingColorFilter(color);
-+    if (role == ColorFilterRole::Background && transformedColor.luminance() > color.luminance())
++    if (m_style->appleColorFilter().isNone() || !color.isValid() || color.isSemantic())
 +        return color;
-+    if (role == ColorFilterRole::Foreground && transformedColor.luminance() < color.luminance())
-+        return color;
-+    return transformedColor;
++    // from 8-bit channels, as Dark Reader parses CSS colours
++    auto [r, g, b, a] = asColorComponents(color.toColorTypeLossy<SRGBA<uint8_t>>().resolved());
++    auto hsl = DarkReader::toHSL(r / 255.0, g / 255.0, b / 255.0, a / 255.0);
++    auto mapped = role == ColorFilterRole::Background ? DarkReader::background(hsl)
++        : role == ColorFilterRole::Border ? DarkReader::border(hsl)
++        : DarkReader::foreground(hsl);
++    return convertColor<SRGBA<uint8_t>>(DarkReader::fromHSL(mapped));
 +}
 +
 +WebCore::Color ColorResolver::colorResolvingCurrentColorApplyingColorFilter(const Style::Color& color, ColorFilterRole role) const
 +{
 +    return colorApplyingColorFilter(colorResolvingCurrentColor(color), role);
-+}
-+
+ }
+ 
  WebCore::Color ColorResolver::colorResolvingCurrentColor(const Style::Color& color) const
- {
-     return color.resolveColor(m_style->color());
+@@ -73,4 +211,4 @@
+ }
+ 
+ } // namespace Style
+-} // namespace WebCore
++} // namespace WebCore
+\ No newline at end of file
 diff -ru a/Source/WebCore/style/StyleColorResolver.h b/Source/WebCore/style/StyleColorResolver.h
---- a/Source/WebCore/style/StyleColorResolver.h	2026-10-29 02:32:43.473691267 +0530
-+++ b/Source/WebCore/style/StyleColorResolver.h	2026-10-29 02:33:02.371854442 +0530
+--- a/Source/WebCore/style/StyleColorResolver.h	2026-07-24 13:32:55.453840300 +0530
++++ b/Source/WebCore/style/StyleColorResolver.h	2026-11-17 22:24:54.295948046 +0530
 @@ -48,6 +48,11 @@
      { T::excludesVisitedLinkColor(std::declval<const WebCore::Color&>()) } -> std::same_as<bool>;
  };
  
-+// novabrowser: role-aware `-apple-color-filter` for a Chromium-like dark mode. A background is
-+// never made lighter and text is never made darker, so parts of a page that are already dark
-+// (a dark header, light text on it) stay as they are. Any = the filter as WebKit applies it.
-+enum class ColorFilterRole : uint8_t { Any, Background, Foreground };
++// novabrowser: role-aware `-apple-color-filter` for a Dark Reader-like dark mode: each role gets
++// its own Dark Reader colour map (StyleColorResolver.cpp). Backgrounds (and gradients, box
++// shadows) go dark, borders mid-dark, everything else (text, SVG paint, decorations) light.
++enum class ColorFilterRole : uint8_t { Background, Border, Foreground };
 +
  class ColorResolver {
  public:
@@ -53,17 +249,17 @@ diff -ru a/Source/WebCore/style/StyleColorResolver.h b/Source/WebCore/style/Styl
  
 +template<typename ColorTraits> constexpr ColorFilterRole colorFilterRoleFor()
 +{
++    // as Dark Reader picks by property name: background -> background, border/outline -> border
 +    if constexpr (std::same_as<ColorTraits, ColorPropertyTraits<PropertyNameConstant<CSSPropertyBackgroundColor>>>)
 +        return ColorFilterRole::Background;
-+    else if constexpr (std::same_as<ColorTraits, ColorPropertyTraits<PropertyNameConstant<CSSPropertyColor>>>
-+        || std::same_as<ColorTraits, ColorPropertyTraits<PropertyNameConstant<CSSPropertyWebkitTextFillColor>>>
-+        || std::same_as<ColorTraits, ColorPropertyTraits<PropertyNameConstant<CSSPropertyWebkitTextStrokeColor>>>
-+        || std::same_as<ColorTraits, ColorPropertyTraits<PropertyNameConstant<CSSPropertyCaretColor>>>
-+        || std::same_as<ColorTraits, ColorPropertyTraits<PropertyNameConstant<CSSPropertyTextDecorationColor>>>
-+        || std::same_as<ColorTraits, ColorPropertyTraits<PropertyNameConstant<CSSPropertyTextEmphasisColor>>>)
-+        return ColorFilterRole::Foreground;
++    else if constexpr (std::same_as<ColorTraits, ColorPropertyTraits<PropertyNameConstant<CSSPropertyBorderTopColor>>>
++        || std::same_as<ColorTraits, ColorPropertyTraits<PropertyNameConstant<CSSPropertyBorderRightColor>>>
++        || std::same_as<ColorTraits, ColorPropertyTraits<PropertyNameConstant<CSSPropertyBorderBottomColor>>>
++        || std::same_as<ColorTraits, ColorPropertyTraits<PropertyNameConstant<CSSPropertyBorderLeftColor>>>
++        || std::same_as<ColorTraits, ColorPropertyTraits<PropertyNameConstant<CSSPropertyOutlineColor>>>)
++        return ColorFilterRole::Border;
 +    else
-+        return ColorFilterRole::Any;
++        return ColorFilterRole::Foreground;
 +}
 +
  // Property specialized resolver. Can perform visited link color specific resolutions that the non-specialized resolver cannot.
@@ -97,8 +293,8 @@ diff -ru a/Source/WebCore/style/StyleColorResolver.h b/Source/WebCore/style/Styl
  
  } // namespace Style
 diff -ru a/Source/WebCore/style/values/images/StyleGradient.cpp b/Source/WebCore/style/values/images/StyleGradient.cpp
---- a/Source/WebCore/style/values/images/StyleGradient.cpp	2026-10-29 02:32:44.066696430 +0530
-+++ b/Source/WebCore/style/values/images/StyleGradient.cpp	2026-10-29 02:33:02.373424893 +0530
+--- a/Source/WebCore/style/values/images/StyleGradient.cpp	2026-07-27 13:58:18.900559200 +0530
++++ b/Source/WebCore/style/values/images/StyleGradient.cpp	2026-11-17 22:24:16.694169750 +0530
 @@ -110,8 +110,9 @@
  {
      Style::ColorResolver colorResolver { style };

@@ -5,6 +5,8 @@
 #        build.sh pkg   -> same as use but prefix /usr (Arch layout), staged in ~/wk-build/stage-pkg
 #                          for pkg/PKGBUILD. Same source dir as gen: PGO names of static functions
 #                          include the source path, so moving the tree would lose part of the profile.
+#        build.sh test  -> no PGO/LTO, installed to ~/.local/opt/wk-test with an rpath to it: a quick
+#                          check of a patch before the PGO run (copy to novarch, LD_LIBRARY_PATH).
 #        BOLT=1 build.sh pkg -> also link with --emit-relocs so llvm-bolt can reorder the libraries
 #                          (relinks only: the flag goes into CMAKE_SHARED_LINKER_FLAGS).
 # Run it through run.sh: novahome runs other services, the build must stay under 20 GB RAM.
@@ -19,7 +21,8 @@ case $stage in
   gen) prefix=$HOME/.local/opt/wk-pgo-gen; pgo="-fprofile-generate"; lto=() ;;
   use) prefix=$HOME/.local/opt/wk-pgo; pgo="-fprofile-use=$HOME/wk-build/wk.profdata -Wno-profile-instr-unprofiled -Wno-profile-instr-out-of-date -Wno-backend-plugin"; lto=(-D LTO_MODE=thin); ldx="-Wl,--thinlto-jobs=4" ;;
   pkg) prefix=/usr; pgo="-fprofile-use=$HOME/wk-build/wk.profdata -Wno-profile-instr-unprofiled -Wno-profile-instr-out-of-date -Wno-backend-plugin"; lto=(-D LTO_MODE=thin -D CMAKE_INSTALL_LIBEXECDIR=lib -D CMAKE_SKIP_RPATH=ON); ldx="-Wl,--thinlto-jobs=4" ;;
-  *) echo "stage: gen|use|pkg" >&2; exit 2 ;;
+  test) prefix=$HOME/.local/opt/wk-test; pgo=""; lto=(-D CMAKE_INSTALL_RPATH="$prefix/lib") ;;
+  *) echo "stage: gen|use|pkg|test" >&2; exit 2 ;;
 esac
 # our WebKit patches (../patches, copied to ~/wk-build/patches): apply each once
 for p in "$HOME"/wk-build/patches/*.patch; do
