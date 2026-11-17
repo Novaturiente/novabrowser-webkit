@@ -1,0 +1,21 @@
+# Call run
+
+- date (IST):
+- site: Zoom / Meet / Teams
+- entry point:
+- user agent (`content.user_agent` for the host):
+- NOVA_WEBKIT_FEATURES:
+- console checks on the meeting page:
+  - crossOriginIsolated:
+  - typeof SharedArrayBuffer:
+  - typeof VideoEncoder:
+  - SIMD WebAssembly.validate:
+- codecs webrtcbin found (from browser.stderr):
+- permission flags (from "media request" lines in browser.stderr):
+- camera (far side sees it): pass / fail
+- microphone (far side hears it): pass / fail
+- screen share (far side sees it): pass / fail
+- screen audio (far side hears it): pass / fail / not offered
+- call length (min):
+- result: pass / fail
+- cause if failed:
