@@ -22,7 +22,10 @@ use std::collections::HashMap;
 use webkit6::prelude::*;
 use webkit6::{UserContentInjectedFrames, UserScript, UserScriptInjectionTime, UserStyleLevel, UserStyleSheet, WebView};
 
-const CSS: &str = ":root:not([data-nova-native-dark]) { -apple-color-filter: apple-invert-lightness() !important; }";
+/// `color-scheme: dark`: the page's default colours (`Canvas`, `CanvasText`) and its natively
+/// drawn form controls turn dark too; the filter leaves such system colours alone.
+/// `data-nova-probe`: off for an instant while the check reads the page's own `color-scheme`.
+const CSS: &str = ":root:not([data-nova-native-dark]):not([data-nova-probe]) { -apple-color-filter: apple-invert-lightness() !important; color-scheme: dark !important; }";
 /// Marks the root while the page paints dark itself. Background = first opaque of html, body,
 /// else the outermost opaque element under the view centre covering half the view (SPA
 /// wrappers like `#root`); no
@@ -30,7 +33,7 @@ const CSS: &str = ":root:not([data-nova-native-dark]) { -apple-color-filter: app
 /// Installed once per document; running it again (live toggle) just re-checks.
 const NATIVE_DARK: &str = r#"(() => {
   if (globalThis.__novaDarkCheck) return globalThis.__novaDarkCheck();
-  const A = 'data-nova-native-dark';
+  const A = 'data-nova-native-dark', P = 'data-nova-probe';
   const lum = e => { const m = (e && getComputedStyle(e).backgroundColor || '').match(/[\d.]+/g);
     return !m || (m[3] !== undefined && +m[3] === 0) ? null : (0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]) / 255; };
   const check = () => {
@@ -39,15 +42,17 @@ const NATIVE_DARK: &str = r#"(() => {
     // only elements covering half the view count as the page background (not a centred button)
     const big = e => { const r = e.getBoundingClientRect(); return r.width * r.height >= innerWidth * innerHeight / 2; };
     if (bg == null) bg = document.elementsFromPoint(innerWidth / 2, innerHeight / 2).filter(big).map(lum).filter(x => x != null).pop();
-    const cs = getComputedStyle(d).colorScheme || '';
+    // the page's own color-scheme, without ours (set and removed before anything paints)
+    let cs = '';
+    if (bg == null) { d.setAttribute(P, ''); cs = getComputedStyle(d).colorScheme || ''; d.removeAttribute(P); }
     const dark = bg != null ? bg < 0.4 : /dark/.test(cs) && (!/light/.test(cs) || matchMedia('(prefers-color-scheme: dark)').matches);
     if (dark !== d.hasAttribute(A)) dark ? d.setAttribute(A, '') : d.removeAttribute(A);
   };
   globalThis.__novaDarkCheck = check;
   let t = 0;
   const soon = () => { if (!t) t = setTimeout(() => { t = 0; check(); }, 50); };
-  // our own attribute is skipped, else marking would retrigger the check forever
-  const mo = new MutationObserver(rs => { if (rs.some(r => r.attributeName !== A)) soon(); });
+  // our own attributes are skipped, else marking would retrigger the check forever
+  const mo = new MutationObserver(rs => { if (rs.some(r => r.attributeName !== A && r.attributeName !== P)) soon(); });
   const watch = () => [document.documentElement, document.body].forEach(e => e && mo.observe(e, { attributes: true }));
   watch();
   addEventListener('load', () => { watch(); check(); });
