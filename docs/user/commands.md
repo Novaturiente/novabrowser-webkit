@@ -136,7 +136,7 @@ See [tabs, sessions and profiles](tabs-sessions-profiles.md).
 | `set -u pattern name value` | Change a setting for matching URLs until restart. |
 | `config-cycle [-t] name v1 v2 …` | Switch to the value after the current one. |
 | `config-source` | Reload `config.ts`. On an error the old config stays and the error is shown. |
-| `dark-toggle` | Toggle dark mode for this site (saved in `darkmode_excludes`). |
+| `dark-toggle` | Toggle dark mode for this site (saved in `darkmode_sites`, or `darkmode_excludes` when dark mode is on everywhere). |
 | `https-toggle` | Allow / stop allowing plain HTTP for this site (saved in `https_excludes`). |
 | `adblock-update` | Download the filter lists now. |
 

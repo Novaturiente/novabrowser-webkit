@@ -153,10 +153,19 @@ for the current site and remember it in a plain text file, one host per line:
 
 - `~/.config/novabrowser-webkit/https_excludes` lists hosts (or `host:port`)
   that may use plain HTTP. The browser reads it by itself.
-- `~/.config/novabrowser-webkit/darkmode_excludes` lists hosts where dark
-  mode is off. To keep these across restarts, read the file in `config.ts`:
+- `~/.config/novabrowser-webkit/darkmode_sites` lists hosts where dark mode
+  is on, while it is off everywhere else (the default). With
+  `colors.webpage.darkmode.enabled = true` the file is `darkmode_excludes`
+  instead: hosts where dark mode is off. To keep these across restarts, read
+  the file in `config.ts`:
 
 ```ts
+// dark only where toggled on
+for (const host of readLines(`${configDir}/darkmode_sites`)) {
+  pattern(`*://${host}/*`, (p) => { p.colors.webpage.darkmode.enabled = true; });
+}
+
+// or: dark everywhere except where toggled off
 c.colors.webpage.darkmode.enabled = true;
 for (const host of readLines(`${configDir}/darkmode_excludes`)) {
   pattern(`*://${host}/*`, (p) => { p.colors.webpage.darkmode.enabled = false; });
@@ -197,7 +206,7 @@ Your own files, safe to edit and worth backing up, are in `~/.config/novabrowser
 | `autoconfig.json` | Settings changed with `:set` / `:settings`. |
 | `quickmarks` | `name url` per line (qutebrowser format). |
 | `bookmarks/urls` | `url title` per line (qutebrowser format). |
-| `https_excludes`, `darkmode_excludes` | Site exceptions, one host per line. |
+| `https_excludes`, `darkmode_sites`, `darkmode_excludes` | Site exceptions, one host per line. |
 | `userscripts/` | Your [userscripts](scripting.md#userscripts). |
 
 Browser data is in `~/.local/share/novabrowser-webkit/`:
