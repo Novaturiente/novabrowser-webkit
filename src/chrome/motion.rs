@@ -23,8 +23,9 @@ pub fn layout() -> adw::SpringParams {
 }
 
 /// Run a spring on `widget` from `from` to `to`, calling `on_value` every frame. The
-/// returned animation is playing (or starts once `widget` is mapped); keep it to
-/// pause or retarget. Skipped at once when animations are off.
+/// returned animation is already playing; keep it to pause or retarget. Skipped at once
+/// when animations are off or `widget` is unmapped (libadwaita does that; a widget made
+/// visible inside a mapped parent maps at once).
 pub fn spring(
     widget: &impl IsA<gtk::Widget>,
     from: f64,
@@ -32,50 +33,58 @@ pub fn spring(
     params: adw::SpringParams,
     on_value: impl Fn(f64) + 'static,
 ) -> adw::SpringAnimation {
-    let on_value = std::rc::Rc::new(on_value);
-    let f = on_value.clone();
-    let target = adw::CallbackAnimationTarget::new(move |v| f(v));
+    spring_then(widget, from, to, params, on_value, || {})
+}
+
+/// `spring`, then `done` once it settles. Connected before it plays: a skipped animation
+/// finishes inside `play()`.
+pub fn spring_then(
+    widget: &impl IsA<gtk::Widget>,
+    from: f64,
+    to: f64,
+    params: adw::SpringParams,
+    on_value: impl Fn(f64) + 'static,
+    done: impl Fn() + 'static,
+) -> adw::SpringAnimation {
+    let target = adw::CallbackAnimationTarget::new(on_value);
     let a = adw::SpringAnimation::new(widget, from, to, params, target);
     a.set_clamp(false);
-    if widget.is_mapped() {
-        a.play();
-    } else {
-        // libadwaita skips straight to the end on an unmapped widget, and a widget just
-        // made visible maps only on the next layout: start from `from`, play once mapped
-        on_value(from);
-        let id: std::rc::Rc<RefCell<Option<glib::SignalHandlerId>>> = Default::default();
-        // strong: fade() keeps no handle; the handler disconnects itself on map
-        let (a2, id2) = (a.clone(), id.clone());
-        let w = widget.upcast_ref::<gtk::Widget>().clone();
-        *id.borrow_mut() = Some(w.connect_map(move |w| {
-            if let Some(h) = id2.take() {
-                w.disconnect(h);
-            }
-            if a2.state() == adw::AnimationState::Idle {
-                a2.play();
-            }
-        }));
-    }
+    a.connect_done(move |_| done());
+    a.play();
     a
 }
 
+thread_local! {
+    /// The running `fade` per widget, so a new fade replaces it (its `done` never runs).
+    static FADES: RefCell<std::collections::HashMap<usize, adw::SpringAnimation>> = RefCell::default();
+}
+
 /// Fade a plain widget's opacity to `to` (shown first when fading in); hides it after a
-/// fade to 0, then runs `done`.
+/// fade to 0, then runs `done`. Replaces a fade still running on `widget`.
 pub fn fade(widget: &impl IsA<gtk::Widget>, to: f64, done: impl Fn() + 'static) {
     let w: gtk::Widget = widget.clone().upcast();
+    let key = w.as_ptr() as usize;
+    if let Some(a) = FADES.with_borrow_mut(|f| f.remove(&key)) {
+        a.pause();
+    }
+    if to == 0.0 && !w.is_visible() {
+        return done();
+    }
     if to > 0.0 && !w.is_visible() {
         w.set_opacity(0.0);
         w.set_visible(true);
     }
-    let from = w.opacity();
-    let w2 = w.clone();
-    let a = spring(&w, from, to, smooth(), move |v| w2.set_opacity(v.clamp(0.0, 1.0)));
-    a.connect_done(move |_| {
+    let (w2, w3) = (w.clone(), w.clone());
+    let a = spring_then(&w, w.opacity(), to, smooth(), move |v| w2.set_opacity(v.clamp(0.0, 1.0)), move || {
+        FADES.with_borrow_mut(|f| f.remove(&key));
         if to == 0.0 {
-            w.set_visible(false);
+            w3.set_visible(false);
         }
         done();
     });
+    if a.state() != adw::AnimationState::Finished {
+        FADES.with_borrow_mut(|f| f.insert(key, a));
+    }
 }
 
 /// Where a `Pop` grows from (and slides toward when shown).
@@ -86,8 +95,6 @@ pub enum Origin {
     Top,
     /// rises from below (toast, search pill, which-key)
     Bottom,
-    /// scales in place (palette card)
-    Center,
 }
 
 mod imp {
@@ -140,7 +147,6 @@ mod imp {
             let dy = match self.origin.get() {
                 Origin::Top => -10.0 * (1.0 - t) as f32,
                 Origin::Bottom => 10.0 * (1.0 - t) as f32,
-                Origin::Center => 0.0,
             };
             let tr = gtk::gsk::Transform::new()
                 .translate(&gtk::graphene::Point::new(wf / 2.0, hf / 2.0 + dy))
@@ -192,12 +198,11 @@ impl Pop {
             a.pause();
         }
         let me = self.downgrade();
-        let a = spring(self, self.imp().t.get(), to, params, move |v| {
+        let a = spring_then(self, self.imp().t.get(), to, params, move |v| {
             if let Some(p) = me.upgrade() {
                 p.set_t(v);
             }
-        });
-        a.connect_done(move |_| done());
+        }, done);
         self.imp().anim.replace(Some(a));
     }
 

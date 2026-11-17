@@ -67,13 +67,23 @@ pub fn vars_css(vars: &Map<String, Value>) -> String {
     out
 }
 
-/// Re-theme every window (config load and `:set`).
+thread_local! {
+    static LAST: RefCell<String> = const { RefCell::new(String::new()) };
+}
+
+/// Re-theme every window (config load and `:set`). Unchanged: nothing (a reload
+/// restyles every widget, and layout changes call this on each resize).
 pub fn apply(vars: &Map<String, Value>) {
+    let css = vars_css(vars);
+    if LAST.with_borrow(|l| *l == css) {
+        return;
+    }
     THEME.with_borrow(|t| {
         if let Some(t) = t {
-            t.load_from_string(&vars_css(vars));
+            t.load_from_string(&css);
         }
     });
+    LAST.set(css);
 }
 
 #[cfg(test)]

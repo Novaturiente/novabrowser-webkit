@@ -84,7 +84,7 @@ pub fn connect(view: &WebView) {
         let Some(t) = v.favicon() else { return };
         let png = t.save_to_png_bytes();
         let url = format!("data:image/png;base64,{}", glib::base64_encode(&png));
-        window::set_favicon(v, url);
+        window::set_favicon(v, url, t);
     });
     view.connect_load_changed(|v, ev| match ev {
         LoadEvent::Started => {

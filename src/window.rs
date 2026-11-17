@@ -40,6 +40,8 @@ pub struct Tab {
     pub typed: bool,
     pub fresh: bool,
     pub icon: String,
+    /// `icon` decoded once, for the tab bar
+    pub tex: Option<gtk::gdk::Texture>,
     /// Stable id for the tab bar's element (animated open/close/move).
     pub key: u64,
     /// `key` of the tab whose page opened this one (0: opened by the user).
@@ -271,6 +273,9 @@ fn build_window(slot: usize) {
     window.connect_is_active_notify(move |w| {
         if w.is_active() {
             CUR.set(slot);
+        } else if WINS.with_borrow(|v| v.get(slot).and_then(|s| s.chrome.as_ref()).is_some_and(|c| c.menu.is_shown())) {
+            // like the old HTML menu's blur: switching away dismisses the tab menu
+            in_slot(slot, close_popup);
         }
     });
     window.connect_default_width_notify(move |_| {
@@ -372,6 +377,7 @@ fn new_tab(view: Option<WebView>, url: String, title: String) -> Tab {
         typed: TYPED_NEXT.get(),
         fresh: true,
         icon: String::new(),
+        tex: None,
         key: {
             TAB_KEY.set(TAB_KEY.get() + 1);
             TAB_KEY.get()
@@ -560,6 +566,7 @@ fn restore_tabs(v: &Value, clear: bool) {
         tab.pinned = t["pinned"].as_bool().unwrap_or(false);
         tab.keep = t["keep"].as_bool().unwrap_or(false);
         tab.icon = t["icon"].as_str().unwrap_or("").to_string();
+        tab.tex = chrome::texture_from_data_url(&tab.icon);
         S.with_borrow_mut(|s| s.tabs.push(tab));
     }
     if !tabs.is_empty() {
@@ -749,8 +756,11 @@ pub fn set_title(view: &WebView, title: String) {
     });
 }
 
-pub fn set_favicon(view: &WebView, icon: String) {
-    update(view, |t| t.icon = icon);
+pub fn set_favicon(view: &WebView, icon: String, tex: gtk::gdk::Texture) {
+    update(view, |t| {
+        t.icon = icon;
+        t.tex = Some(tex);
+    });
 }
 pub fn set_progress(view: &WebView, p: f64) {
     update(view, |t| t.progress = p);
@@ -894,7 +904,7 @@ pub fn refresh() {
                 TabItem {
                     key: t.key,
                     label: theme::format_title(if pinned { &pin_fmt } else { &tab_fmt }, &fields(i, t)),
-                    icon: t.icon.clone(),
+                    icon: t.tex.clone(),
                     active: i == s.active,
                     loading: t.loading,
                     progress: t.progress,

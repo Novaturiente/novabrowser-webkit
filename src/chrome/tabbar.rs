@@ -2,7 +2,7 @@
 //! reorder, live drag), then the profile pill, status pills (keys, downloads, mode) and
 //! the load progress line. Same look and classes as the old `ui/tabbar.html`.
 use super::motion;
-use super::{texture_from_data_url, Ev, Sink, Status, TabItem};
+use super::{Ev, Sink, Status, TabItem};
 use crate::config;
 use adw::prelude::*;
 use gtk::glib;
@@ -115,7 +115,7 @@ struct TabW {
     close: gtk::Button,
     item: RefCell<TabItem>,
     classes: RefCell<Vec<&'static str>>,
-    icon_src: RefCell<String>,
+    icon_src: RefCell<Option<gtk::gdk::Texture>>,
     cur: Cell<(f64, f64, f64)>,
     from: Cell<(f64, f64, f64)>,
     to: Cell<(f64, f64, f64)>,
@@ -138,7 +138,6 @@ mod imp {
     pub struct Strip {
         pub(super) order: RefCell<Vec<u64>>,
         pub(super) tabs: RefCell<HashMap<u64, Rc<TabW>>>,
-        pub(super) closing: RefCell<Vec<u64>>,
         pub(super) vertical: Cell<bool>,
         pub(super) size: Cell<(i32, i32)>,
         pub(super) layout_key: RefCell<String>,
@@ -290,16 +289,17 @@ impl Strip {
         t.to.set(to);
         let (me, tw) = (self.downgrade(), Rc::downgrade(t));
         let params = if t.from.get().1 < 1.0 { motion::snappy() } else { motion::layout() };
-        let a = motion::spring(self, 0.0, 1.0, params, move |v| {
+        let a = motion::spring_then(self, 0.0, 1.0, params, move |v| {
             let (Some(s), Some(t)) = (me.upgrade(), tw.upgrade()) else { return };
             let (f, g) = (t.from.get(), t.to.get());
             let l = |a: f64, b: f64| a + (b - a) * v;
             t.cur.set((l(f.0, g.0), l(f.1, g.1).max(0.0), l(f.2, g.2)));
             s.queue_allocate();
+        }, move || {
+            if let Some(d) = &done {
+                d();
+            }
         });
-        if let Some(d) = done {
-            a.connect_done(move |_| d());
-        }
         t.anim.replace(Some(a));
     }
 
@@ -392,6 +392,11 @@ impl Strip {
         let first = !imp.applied.replace(true);
         let vertical = imp.vertical.get();
         let mut added = Vec::new();
+        let xalign = match config::get().str("tabs.title.alignment").as_str() {
+            "center" => 0.5,
+            "right" => 1.0,
+            _ => 0.0,
+        };
         for (i, it) in items.iter().enumerate() {
             let t = match self.tab(it.key) {
                 Some(t) => t,
@@ -402,7 +407,7 @@ impl Strip {
                     t
                 }
             };
-            update_tab(&t, it, i, vertical);
+            update_tab(&t, it, i, vertical, xalign);
         }
         // gone: shrink out where they stand, then drop
         let live: Vec<u64> = items.iter().map(|t| t.key).collect();
@@ -416,7 +421,8 @@ impl Strip {
         imp.order.replace(live.clone());
         for k in gone {
             let Some(t) = self.tab(k) else { continue };
-            imp.closing.borrow_mut().push(k);
+            // a shrinking tab's × must not catch clicks meant for the neighbour sliding in
+            t.root.set_can_target(false);
             let (pos, len, _) = t.cur.get();
             let me = self.downgrade();
             let to = if vertical { (pos, len, 0.0) } else { (pos + len / 2.0, 0.0, 0.0) };
@@ -426,13 +432,13 @@ impl Strip {
                     if let Some(t) = t {
                         t.root.unparent();
                     }
-                    s.imp().closing.borrow_mut().retain(|c| *c != k);
                 }
             })));
         }
         let key = items
             .iter()
-            .map(|t| format!("{}:{}", t.key, is_circle(t, vertical)))
+            // the active tab too: switching scrolls it into view
+            .map(|t| format!("{}:{}:{}", t.key, is_circle(t, vertical), t.active))
             .collect::<Vec<_>>()
             .join(",");
         let changed = imp.layout_key.replace(key.clone()) != key;
@@ -464,7 +470,6 @@ impl Strip {
         close.add_css_class("x");
         close.set_valign(gtk::Align::Center);
         close.set_focusable(false);
-        close.set_tooltip_text(Some("Close tab"));
         let me = self.downgrade();
         close.connect_clicked(move |_| {
             if let Some(s) = me.upgrade() {
@@ -485,7 +490,7 @@ impl Strip {
             close,
             item: RefCell::new(TabItem { key, ..Default::default() }),
             classes: RefCell::new(Vec::new()),
-            icon_src: RefCell::new(String::new()),
+            icon_src: RefCell::new(None),
             cur: Cell::new((0.0, 0.0, 1.0)),
             from: Cell::new((0.0, 0.0, 1.0)),
             to: Cell::new((0.0, 0.0, 1.0)),
@@ -602,6 +607,21 @@ impl Strip {
         });
         self.add_controller(drag);
 
+        let wheel = gtk::EventControllerScroll::new(gtk::EventControllerScrollFlags::BOTH_AXES);
+        let me = self.downgrade();
+        wheel.connect_scroll(move |c, dx, dy| {
+            let Some(s) = me.upgrade() else { return glib::Propagation::Proceed };
+            let step = if c.unit() == gtk::gdk::ScrollUnit::Wheel { 40.0 } else { 1.0 };
+            let imp = s.imp();
+            let (w, h) = imp.size.get();
+            let avail = if imp.vertical.get() { h } else { w } as f64;
+            let end = imp.tabs.borrow().values().map(|t| t.to.get().0 + t.to.get().1 + GAP).fold(0.0, f64::max);
+            let off = (imp.offset.get() + (dx + dy) * step).clamp(0.0, (end - avail).max(0.0));
+            s.scroll_to(off, false);
+            glib::Propagation::Stop
+        });
+        self.add_controller(wheel);
+
         let motion_c = gtk::EventControllerMotion::new();
         let me = self.downgrade();
         motion_c.connect_motion(move |_, x, y| {
@@ -700,9 +720,13 @@ impl Strip {
         if commit && target != d.from {
             // reorder here first so the window's refresh finds nothing left to move
             {
+                // by key: a tab may have closed during the drag
                 let mut o = imp.order.borrow_mut();
-                o.remove(d.from);
-                o.insert(target, d.key);
+                if let Some(from) = o.iter().position(|k| *k == d.key) {
+                    o.remove(from);
+                    let at = target.min(o.len());
+                    o.insert(at, d.key);
+                }
             }
             self.relayout(true);
             self.send(Ev::Move(target));
@@ -717,7 +741,7 @@ fn is_circle(t: &TabItem, vertical: bool) -> bool {
     t.pinned && !t.active && !vertical
 }
 
-fn update_tab(t: &TabW, it: &TabItem, index: usize, vertical: bool) {
+fn update_tab(t: &TabW, it: &TabItem, index: usize, vertical: bool, xalign: f32) {
     let circle = is_circle(it, vertical);
     let mut classes = vec!["t"];
     for (on, c) in [
@@ -740,26 +764,22 @@ fn update_tab(t: &TabW, it: &TabItem, index: usize, vertical: bool) {
         t.classes.replace(classes);
     }
     if *t.icon_src.borrow() != it.icon {
-        t.icon.set_paintable(texture_from_data_url(&it.icon).as_ref());
+        t.icon.set_paintable(it.icon.as_ref());
         t.icon_src.replace(it.icon.clone());
     }
     let mut old = t.item.borrow_mut();
     if old.label != it.label {
         t.label.set_label(&it.label);
     }
-    let has_icon = !it.icon.is_empty();
+    let has_icon = it.icon.is_some();
     t.spin.set_visible(it.loading && !it.crashed);
     t.icon.set_visible(has_icon && !(it.loading && !it.crashed));
-    // circles: icon (or spinner) only, centred
-    t.label.set_visible(!circle);
+    // circles: icon (or spinner) only, centred; nothing to show: the clipped label (HTML)
+    t.label.set_visible(!circle || !(has_icon || it.loading));
     t.close.set_visible(!it.pinned);
     t.icon.set_hexpand(circle);
     t.spin.set_hexpand(circle);
-    t.label.set_xalign(match config::get().str("tabs.title.alignment").as_str() {
-        "center" => 0.5,
-        "right" => 1.0,
-        _ => 0.0,
-    });
+    t.label.set_xalign(xalign);
     *old = it.clone();
 }
 

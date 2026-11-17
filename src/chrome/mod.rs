@@ -58,8 +58,8 @@ pub struct TabItem {
     pub key: u64,
     /// formatted title (`tabs.title.format`)
     pub label: String,
-    /// favicon as a `data:image/png;base64,…` URL, "" for none (`texture_from_data_url`)
-    pub icon: String,
+    /// favicon (a refcounted texture: cheap to clone on every refresh)
+    pub icon: Option<gdk::Texture>,
     pub active: bool,
     pub loading: bool,
     /// 0..1
