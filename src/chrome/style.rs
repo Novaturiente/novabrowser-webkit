@@ -38,6 +38,9 @@ pub fn install(display: &gdk::Display) {
             super::prompt::CSS,
             super::toast::CSS,
             super::keyhint::CSS,
+            // behind the web views: a page whose first frame doesn't cover the view yet (a new
+            // window still settling its size) shows this, not the light GTK window background
+            &format!("window.nova .nova-pages {{ background-color: {}; }}\n", crate::web::UNPAINTED),
         ]
         .concat();
         css.load_from_string(&sheet);

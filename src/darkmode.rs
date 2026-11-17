@@ -4,9 +4,11 @@
 //! leaves images alone, close to Chromium's forced dark. The `ColorFilter` feature is on in
 //! every page's settings (web.rs); the property does nothing until this user style sets it.
 //! W13: no measurable Speedometer cost (Dark Reader −42%, CSS invert −12% and unreadable text).
-//! Our WebKit build (webkitgtk-6.0-nova ≥ 2.54.2-2, spikes/wk-build/patches/0001-color-filter-
-//! roles.patch) makes the filter role-aware like Chromium: backgrounds are never lightened and
-//! text never darkened, so dark parts of a light page stay dark. Stock WebKitGTK inverts all.
+//! Our WebKit build (webkitgtk-6.0-nova, spikes/wk-build/patches/0001-color-filter-roles.patch)
+//! replaces the filter's maths with Dark Reader's colour maps per role (background, border,
+//! text/everything else; since 2.54.2-5, before: backgrounds never lightened, text never
+//! darkened), so backgrounds go to Dark Reader's #181a1b range and text to #e8e6e3, hues kept.
+//! Stock WebKitGTK inverts all.
 //! Pages already dark on their own (GitHub under a dark system theme) are left alone, as in
 //! Chromium: a document-end script in our world marks them and the style skips marked roots.
 //! It re-checks when the page switches theme later (class/style/attribute change on html or

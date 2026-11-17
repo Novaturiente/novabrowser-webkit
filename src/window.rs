@@ -202,6 +202,7 @@ fn build_window(slot: usize) {
     stack.set_hexpand(true);
     stack.set_vexpand(true);
     stack.set_transition_type(gtk::StackTransitionType::None);
+    stack.add_css_class("nova-pages");
     content.set_child(Some(&stack));
     content.set_hexpand(true);
     content.set_vexpand(true);

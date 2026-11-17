@@ -49,7 +49,7 @@ const PAINT_JS: &str = r#"(() => {
 
 /// Behind a page until it is set up (`PAINT_JS`), and under dark mode (Dark Reader's
 /// background): no white flash while a page loads. Then `colors.webpage.bg`, which pages assume.
-const UNPAINTED: &str = "#181a1b";
+pub const UNPAINTED: &str = "#181a1b";
 
 thread_local! {
     /// views whose current page painted content
