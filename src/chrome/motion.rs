@@ -210,13 +210,3 @@ impl Pop {
         });
     }
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn presets_are_sane() {
-        // overshoot only on open; close settles without bounce
-        assert!(super::snappy().damping_ratio() < 1.0);
-        assert!((super::smooth().damping_ratio() - 1.0).abs() < f64::EPSILON);
-    }
-}

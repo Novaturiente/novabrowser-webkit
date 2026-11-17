@@ -72,6 +72,7 @@ fn handle(line: &str) -> String {
             "ok".into()
         }
         Some(("query", "state")) => crate::window::state_json(),
+        Some(("query", q)) if q.starts_with("snapshot ") => crate::window::snapshot(&q[9..]),
         Some(("key", k)) => match nova_core::keys::parse_keystring(k) {
             Ok(keys) => {
                 for key in keys {

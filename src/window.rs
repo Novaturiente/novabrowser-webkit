@@ -989,6 +989,23 @@ pub fn state_json() -> String {
     })
 }
 
+/// `--query "snapshot <file.png>"`: render the current window to a PNG (UI tests; works
+/// while another window covers it).
+pub fn snapshot(path: &str) -> String {
+    let Some(w) = S.with_borrow(|s| s.window.clone()) else {
+        return "error: no window".into();
+    };
+    let snap = gtk::Snapshot::new();
+    gtk::WidgetPaintable::new(Some(&w)).snapshot(&snap, w.width() as f64, w.height() as f64);
+    let (Some(node), Some(r)) = (snap.to_node(), w.native().and_then(|n| n.renderer())) else {
+        return "error: nothing drawn".into();
+    };
+    match r.render_texture(&node, None).save_to_png(path) {
+        Ok(()) => "ok".into(),
+        Err(e) => format!("error: {e}"),
+    }
+}
+
 pub fn active_url_title() -> (String, String) {
     S.with_borrow(|s| {
         let i = match TARGET.get() {

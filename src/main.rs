@@ -216,6 +216,8 @@ fn main() {
     let app = gtk::Application::new(None::<&str>, gio::ApplicationFlags::NON_UNIQUE);
     let start = start_url();
     app.connect_activate(move |app| {
+        // libadwaita's springs (chrome/motion.rs) refuse to run before this
+        adw::init().expect("libadwaita init");
         nova_core::host::set(Box::new(WebKitHost), post);
         window::set_app(app);
         web::init(&data, &cache);
