@@ -8,7 +8,7 @@
 # Upstream source: https://webkitgtk.org/releases/webkitgtk-$pkgver.tar.xz
 pkgname=webkitgtk-6.0-nova-bin
 pkgver=2.54.2
-pkgrel=5
+pkgrel=4
 pkgdesc="Web content engine for GTK 4 (PGO + x86-64-v3 + ThinLTO build with novabrowser patches, prebuilt)"
 url="https://github.com/Novaturiente/novabrowser-webkit"
 arch=(x86_64)
@@ -18,16 +18,16 @@ depends=(at-spi2-core atk bubblewrap cairo enchant expat fontconfig freetype2 gd
   hyphen icu lcms2 libatomic libavif libdrm libegl libepoxy libgcc libgcrypt libgl libgles
   libjpeg-turbo libjxl libmanette libpng libseccomp libsecret libsoup3 libstdc++ libsystemd
   libtasn1 libwebp libx11 libxml2 libxslt mesa openjpeg2 pango sqlite ttf-font wayland woff2
-  xdg-dbus-proxy zlib
-  gst-plugins-good gst-plugins-bad libnice)  # WebRTC: webrtcbin, rtpmanager, VP8, nice
+  xdg-dbus-proxy zlib)
 optdepends=('geoclue: Geolocation support'
   'gst-libav: nonfree media decoding'
-  'gst-plugin-pipewire: screen sharing on Wayland')
+  'gst-plugins-bad: media decoding, WebRTC (webrtcbin)'
+  'libnice: WebRTC ICE (GStreamer nice plugin)'
+  'gst-plugins-good: media decoding')
 provides=("webkitgtk-6.0=$pkgver" "webkitgtk-6.0-nova=$pkgver" libjavascriptcoregtk-6.0.so libwebkitgtk-6.0.so)
 conflicts=(webkitgtk-6.0 webkitgtk-6.0-nova)
 options=(!strip !debug)
-# pkgrel 5 changed dependencies only: same asset as 2.54.2-4 (restore $pkgrel on a rebuild)
-_tag=webkitgtk-6.0-nova-$pkgver-4
+_tag=webkitgtk-6.0-nova-$pkgver-$pkgrel
 source=("$_tag-x86_64.tar.zst::$url/releases/download/$_tag/$_tag-x86_64.tar.zst")
 sha256sums=('6a393b9e8955bc5ba3f9c08b68652c91b3c167a4efbed71bf4eb56de9cade9bf')
 
