@@ -1,12 +1,14 @@
-//! Windows, the tab list, the HTML tab bar (mode, keys, messages, progress) and the
-//! overlays (palette, which-key, tooltip/menu). All state lives on the GTK main thread.
+//! Windows, the tab list, and the native chrome (`chrome/`: tab bar with mode, keys and
+//! progress; palette, which-key, tooltip/menu, password list, prompt, toast as overlays).
+//! All state lives on the GTK main thread.
 //! Web views are created lazily (first show) and live in a GtkStack per window.
+use crate::chrome::{self, motion, Chrome, Ev, ListHeight, Status, TabItem};
 use crate::modes::{self, Mode};
 use crate::theme::{self, TitleFields};
 use crate::{config, history, tabview, web};
 use gtk::prelude::*;
 use gtk::glib;
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
@@ -51,17 +53,11 @@ pub struct State {
     pub stack: Option<gtk::Stack>,
     content: Option<gtk::Overlay>,
     root: Option<gtk::Overlay>,
-    pub tabbar: Option<WebView>,
-    palette: Option<WebView>,
+    /// the tab bar's widget (`chrome.tabbar.widget()`), placed by `apply_layout`
+    pub tabbar: Option<gtk::Widget>,
+    chrome: Option<Chrome>,
     /// the page, live and blurred, under the palette: a Box holding a Picture (CSS `.nova-backdrop`)
     backdrop: Option<gtk::Box>,
-    keyhint: Option<WebView>,
-    tip: Option<WebView>,
-    menu: Option<WebView>,
-    /// the open question (permissions.rs queue), spotlight-style under the tab bar
-    ask: Option<WebView>,
-    /// messages and the find count, a pill at the bottom centre (ui/toast.html)
-    toast: Option<WebView>,
     keyhint_gen: u64,
     compact: bool,
     pub tabs: Vec<Tab>,
@@ -81,8 +77,6 @@ pub struct State {
     /// progress and keys don't save (each save serializes every tab's history).
     saved_key: String,
 }
-
-static BACKDROP_CSS: std::sync::Once = std::sync::Once::new();
 
 thread_local! {
     static WINS: RefCell<Vec<State>> = const { RefCell::new(Vec::new()) };
@@ -124,16 +118,13 @@ fn vid(v: &Option<WebView>) -> Option<usize> {
     v.as_ref().map(web::id)
 }
 
-/// Slot of the window owning view `id` (a tab or one of its chrome views).
+/// Slot of the window owning tab view `id`.
 fn owner(id: usize) -> Option<usize> {
-    WINS.with_borrow(|w| {
-        w.iter().position(|s| {
-            s.tabs.iter().any(|t| vid(&t.view) == Some(id))
-                || [&s.tabbar, &s.palette, &s.keyhint, &s.tip, &s.menu, &s.ask, &s.toast]
-                    .iter()
-                    .any(|v| vid(v) == Some(id))
-        })
-    })
+    WINS.with_borrow(|w| w.iter().position(|s| s.tabs.iter().any(|t| vid(&t.view) == Some(id))))
+}
+
+fn chrome() -> Option<Chrome> {
+    S.with_borrow(|s| s.chrome.clone())
 }
 
 pub fn in_slot<R>(slot: usize, f: impl FnOnce() -> R) -> R {
@@ -217,18 +208,11 @@ fn build_window(slot: usize) {
     for o in [&root, &content] {
         o.connect_get_child_position(fixed_overlay_position);
     }
-    let ui = |name: &str| {
-        web::chrome_view(name, move |text| {
-            in_slot(slot, || ui_message(text));
-        })
-    };
-    let tabbar = ui("tabbar");
-    let palette = ui("palette");
-    let keyhint = ui("keyhint");
-    let tip = ui("popup");
-    let menu = ui("popup");
-    let ask = ui("prompt");
-    let toast = ui("toast");
+    window.add_css_class(chrome::style::WINDOW_CLASS);
+    chrome::style::install(&WidgetExt::display(&window));
+    let sink: chrome::Sink = Rc::new(move |ev| in_slot(slot, || on_ev(ev)));
+    let ch = Chrome::new(sink);
+    let tabbar = ch.tabbar.widget();
     let backdrop = gtk::Picture::new();
     backdrop.add_css_class("nova-backdrop");
     backdrop.set_content_fit(gtk::ContentFit::Fill);
@@ -240,46 +224,49 @@ fn build_window(slot: usize) {
     backdrop_bg.set_can_target(false);
     backdrop_bg.set_visible(false);
     content.add_overlay(&backdrop_bg); // added first: under the palette
-    BACKDROP_CSS.call_once(|| {
-        let css = gtk::CssProvider::new();
-        css.load_from_string(
-            ".nova-backdrop { filter: blur(10px) brightness(.45); } .nova-backdrop-bg { background: black; }",
-        );
-        gtk::style_context_add_provider_for_display(
-            &WidgetExt::display(&window),
-            &css,
-            gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
-        );
-    });
-    for (v, parent) in [(&palette, &content), (&keyhint, &content), (&ask, &content), (&toast, &content), (&tip, &root), (&menu, &root)] {
-        v.set_visible(false);
-        parent.add_overlay(v);
-    }
-    // the tooltip and suggestions never take focus or clicks away from the page
-    tip.set_can_target(false);
-    tip.set_can_focus(false);
-    keyhint.set_can_target(false);
-    keyhint.set_can_focus(false);
+    let palette = ch.palette.widget();
+    palette.set_halign(gtk::Align::Fill);
+    palette.set_valign(gtk::Align::Fill);
+    let keyhint = ch.keyhint.widget();
     keyhint.set_halign(gtk::Align::End);
     keyhint.set_valign(gtk::Align::End);
     keyhint.set_margin_end(12);
     keyhint.set_margin_bottom(12);
     // keys answer through prompt mode, so the page keeps focus; clicks still reach the buttons
-    ask.set_can_focus(false);
+    let ask = ch.prompt.widget();
     ask.set_halign(gtk::Align::Center);
     ask.set_valign(gtk::Align::Start);
     ask.set_margin_top(12);
-    toast.set_can_target(false);
-    toast.set_can_focus(false);
+    let toast = ch.toast.widget();
     toast.set_halign(gtk::Align::Center);
     toast.set_valign(gtk::Align::End);
     toast.set_margin_bottom(18);
-    ask.set_background_color(&gtk::gdk::RGBA::new(0.0, 0.0, 0.0, 0.0));
-    palette.set_halign(gtk::Align::Fill);
-    for v in [&tip, &menu] {
-        v.set_halign(gtk::Align::Start);
-        v.set_valign(gtk::Align::Start);
+    // the tooltip, which-key and toast never take focus from the page
+    for w in [&keyhint, &ask, &toast] {
+        w.set_can_focus(false);
+        content.add_overlay(w);
     }
+    content.add_overlay(&palette);
+    for w in [ch.tip.widget(), ch.suggest.widget(), ch.menu.widget()] {
+        w.set_halign(gtk::Align::Start);
+        w.set_valign(gtk::Align::Start);
+        root.add_overlay(&w);
+    }
+    ch.tip.widget().set_can_focus(false);
+    ch.suggest.widget().set_can_focus(false);
+    // a press outside the open tab menu dismisses it (the page still gets the press)
+    let outside = gtk::GestureClick::new();
+    outside.set_button(0);
+    outside.set_propagation_phase(gtk::PropagationPhase::Capture);
+    let menu_w = ch.menu.widget();
+    outside.connect_pressed(move |g, _, x, y| {
+        let Some(root) = g.widget() else { return };
+        let inside = root.pick(x, y, gtk::PickFlags::DEFAULT).is_some_and(|w| w == menu_w || w.is_ancestor(&menu_w));
+        if !inside && menu_w.is_visible() {
+            in_slot(slot, close_popup);
+        }
+    });
+    root.add_controller(outside);
     crate::modes::attach_keys(&window, slot);
     window.connect_is_active_notify(move |w| {
         if w.is_active() {
@@ -300,33 +287,12 @@ fn build_window(slot: usize) {
         s.content = Some(content);
         s.root = Some(root);
         s.tabbar = Some(tabbar);
-        s.palette = Some(palette);
+        s.chrome = Some(ch);
         s.backdrop = Some(backdrop_bg);
-        s.keyhint = Some(keyhint);
-        s.tip = Some(tip);
-        s.menu = Some(menu);
-        s.ask = Some(ask);
-        s.toast = Some(toast);
         (s.start_url.clone(), s.startup.take(), s.private)
     });
     apply_layout();
     window.present();
-    // once the first page is up: draw the palette and its blur once, unseen (anim::warm)
-    glib::timeout_add_local_once(Duration::from_millis(1500), move || {
-        in_slot(slot, || {
-            let Some((p, b, page)) = S.with_borrow(|s| {
-                Some((s.palette.clone()?, s.backdrop.clone()?, s.tabs.get(s.active)?.view.clone()?))
-            }) else {
-                return;
-            };
-            if modes::mode() == Mode::Command {
-                return;
-            }
-            set_backdrop(&b, Some(&page));
-            let b2 = b.clone();
-            crate::anim::warm(&[p.upcast(), b.upcast()], move || set_backdrop(&b2, None));
-        })
-    });
     let session = if private || STARTED.replace(true) {
         None
     } else {
@@ -918,81 +884,59 @@ pub fn refresh() {
     let cfg = config::get();
     let tab_fmt = cfg.str("tabs.title.format");
     let pin_fmt = cfg.str("tabs.title.format_pinned");
-    let Some((tabbar, window, bar_json, title, key)) = S.with_borrow(|s| {
-        let tabs: Vec<String> = s
+    let Some((ch, window, tabs, status, title, key)) = S.with_borrow(|s| {
+        let tabs: Vec<TabItem> = s
             .tabs
             .iter()
             .enumerate()
             .map(|(i, t)| {
                 let pinned = t.pinned && i != s.active;
-                let label = theme::format_title(if pinned { &pin_fmt } else { &tab_fmt }, &fields(i, t));
-                format!(
-                    "{{\"k\":{},\"t\":{},\"i\":{},\"a\":{},\"l\":{},\"p\":{},\"e\":{},\"n\":{},\"z\":{}}}",
-                    t.key,
-                    js_str(&label),
-                    js_str(&t.icon),
-                    i == s.active,
-                    t.loading,
-                    t.progress,
-                    t.crashed.is_some(),
-                    t.pinned,
-                    t.asleep
-                )
+                TabItem {
+                    key: t.key,
+                    label: theme::format_title(if pinned { &pin_fmt } else { &tab_fmt }, &fields(i, t)),
+                    icon: t.icon.clone(),
+                    active: i == s.active,
+                    loading: t.loading,
+                    progress: t.progress,
+                    crashed: t.crashed.is_some(),
+                    pinned: t.pinned,
+                    asleep: t.asleep,
+                }
             })
             .collect();
         let key = s.tabs.iter().fold(s.active.to_string(), |k, t| {
             format!("{k} {} {} {} {}", t.url, t.pinned, t.keep, t.crashed.is_some())
         });
         let t = s.tabs.get(s.active)?;
-        // the open question has its own popup (set_prompt), not the tab bar
-        let (level, msg) = s.message.clone().unwrap_or_default();
         let profile = if s.private {
             "private".to_string()
         } else {
             crate::profile().unwrap_or("").to_string()
         };
-        let status = json!({
-            "profile": profile,
-            "url": t.url,
-            "p": t.progress,
-            "loading": t.loading,
-            "crashed": t.crashed.is_some(),
-            "mode": modes::mode_label(),
-            "cmd": modes::mode() == Mode::Command,
-            "keys": if modes::mode() == Mode::Hint { crate::hints::typed() } else { modes::pending() },
-            "level": level,
-            "msg": msg,
-            "tab": format!("[{}/{}]", s.active + 1, s.tabs.len()),
-            "hist": match (t.can_back, t.can_fwd) {
-                (true, true) => "[<>]",
-                (true, false) => "[<]",
-                (false, true) => "[>]",
-                _ => "",
-            },
-            "modename": modes::mode_name(),
-            "dl": crate::downloads::summary().0,
-            "dlc": crate::downloads::summary().1,
-        });
+        let (dl, dlc) = crate::downloads::summary();
+        let status = Status {
+            profile,
+            mode: modes::mode_label().to_string(),
+            modename: modes::mode_name(),
+            cmd: modes::mode() == Mode::Command,
+            keys: if modes::mode() == Mode::Hint { crate::hints::typed().to_string() } else { modes::pending() },
+            dl,
+            dlc,
+            loading: t.loading,
+            progress: t.progress,
+        };
         let mut title = theme::format_title(&cfg.str("window.title_format"), &fields(s.active, t));
         if let Some(p) = crate::profile() {
             title = format!("[{p}] {title}");
         }
-        // serde escapes "</script>"-like text fine for a JS expression
-        let status = status.to_string().replace('\u{2028}', "\\u2028").replace('\u{2029}', "\\u2029");
-        Some((
-            s.tabbar.clone()?,
-            s.window.clone()?,
-            format!("{{\"tabs\":[{}],\"status\":{status}}}", tabs.join(",")),
-            title,
-            key,
-        ))
+        Some((s.chrome.clone()?, s.window.clone()?, tabs, status, title, key))
     }) else {
         return;
     };
     if S.with_borrow_mut(|s| std::mem::replace(&mut s.saved_key, key) != s.saved_key) {
         crate::session::dirty();
     }
-    web::eval_page(&tabbar, &format!("window.nova && nova.apply && nova.apply({bar_json})"));
+    ch.tabbar.apply(&tabs, &status);
     window.set_title(Some(&title));
 }
 
@@ -1031,7 +975,7 @@ pub fn state_json() -> String {
             "private": s.private,
             "suggestions": crate::passwords::suggestions(),
             // on-screen size of the tooltip/password popup while shown
-            "popup": s.tip.as_ref().filter(|v| v.is_visible()).map(|v| [v.width(), v.height()]),
+            "popup": s.chrome.as_ref().and_then(|c| c.suggest.shown_size().or_else(|| c.tip.shown_size())).map(|(w, h)| [w, h]),
             "fullscreen": s.window.as_ref().is_some_and(|w| w.is_fullscreen()),
             "active": s.active,
             "url": s.tabs.get(s.active).map(|t| t.url.as_str()),
@@ -1296,22 +1240,17 @@ pub fn undo_close() {
 
 /// Show (or hide, with None) the open question and its [key, label] answers.
 pub fn set_prompt(p: Option<(String, Vec<[&'static str; 2]>)>) {
-    let Some((view, content)) = S.with_borrow_mut(|s| {
+    let Some(c) = S.with_borrow_mut(|s| {
         s.prompt = p.as_ref().map(|p| p.0.clone());
-        Some((s.ask.clone()?, s.content.clone()?))
+        s.chrome.clone()
     }) else {
         return;
     };
     refresh();
-    let Some((q, opts)) = p else {
-        return crate::anim::conceal(&view, || {});
-    };
-    let w = (content.width() - 24).clamp(240, 640);
-    // shortcut: line count guessed at ~9 px per character; prompt.html clamps to 3 lines
-    let lines = (q.chars().count() as i32 * 9 / (w - 100) + 1).min(3);
-    // body padding 10+10, card (56 px or 20 px lines + 20), gap 14, buttons 40, shadow room
-    view.set_size_request(w, 20 + (20 * lines + 22).max(56) + 14 + 40 + 6);
-    crate::anim::reveal(&view, &format!("nova.ask({})", json!({"q": q, "opts": opts})), &[]);
+    match p {
+        Some((q, opts)) => c.prompt.show(&q, &opts),
+        None => c.prompt.hide(),
+    }
 }
 
 /// Show a status bar message for `messages.timeout` ms (`info`, `warning`, `error`).
@@ -1323,6 +1262,7 @@ pub fn message(level: &str, text: &str) {
         s.message_id
     });
     refresh();
+    let Some(c) = chrome() else { return };
     // typing a search: the count goes in the search pill, which sits where the toast would
     if modes::mode() == Mode::Command && S.with_borrow(|s| s.compact) {
         let count = match level {
@@ -1330,11 +1270,11 @@ pub fn message(level: &str, text: &str) {
             "warning" if text.ends_with("not found on page!") => Some("no match"),
             _ => None,
         };
-        if let Some(c) = count {
-            return palette_js(&format!("nova.count({})", js_str(c)));
+        if let Some(n) = count {
+            return c.palette.count(n);
         }
     }
-    show_toast(level, text);
+    c.toast.show(level, text);
     let ms = config::get().int("messages.timeout");
     if ms > 0 {
         let slot = CUR.get();
@@ -1344,26 +1284,13 @@ pub fn message(level: &str, text: &str) {
                     S.with_borrow_mut(|s| s.message_id == id && s.message.take().is_some());
                 if cleared {
                     refresh();
-                    if let Some(t) = S.with_borrow(|s| s.toast.clone()) {
-                        crate::anim::conceal(&t, || {});
-                    }
+                    c.toast.hide();
                 }
             })
         });
     }
 }
 
-/// The message as a pill at the bottom centre. The view spans the content width (it is
-/// transparent and takes no clicks); the pill sizes itself to the text (toast.html).
-fn show_toast(level: &str, text: &str) {
-    let Some((t, content)) = S.with_borrow(|s| Some((s.toast.clone()?, s.content.clone()?))) else {
-        return;
-    };
-    t.set_size_request((content.width() - 40).max(160), 46);
-    crate::anim::reveal(&t, &format!("nova.toast({}, {})", js_str(level), js_str(text)), &[]);
-}
-
-/// Show `text` once the window is up (startup config errors).
 /// Bring the current window to the front (a URL handed over from another app).
 pub fn raise() {
     if let Some(w) = S.with_borrow(|s| s.window.clone()) {
@@ -1371,48 +1298,35 @@ pub fn raise() {
     }
 }
 
+/// Show `text` once the window is up (startup config errors).
 pub fn startup_message(level: &str, text: &str) {
     S.with_borrow_mut(|s| s.startup = Some((level.to_string(), text.to_string())));
 }
 
-fn palette_js(js: &str) {
-    if let Some(v) = S.with_borrow(|s| s.palette.clone()) {
-        web::eval_page(&v, js);
-    }
-}
-
 /// `cmd-set-text`: open the floating palette with `text`. Search (`/`, `?`) gets a
-/// thin strip so the matches stay visible; everything else floats over the page,
-/// blurred live by GTK (no screenshot: that cost a PNG round trip and showed stale).
+/// pill at the bottom so the matches stay visible; everything else floats over the page,
+/// blurred live by GTK.
 pub fn open_cmdline(text: &str) {
     modes::enter(Mode::Command);
     let compact = text.starts_with('/') || text.starts_with('?');
-    let Some((view, backdrop, page)) = S.with_borrow_mut(|s| {
+    let Some((c, backdrop, page)) = S.with_borrow_mut(|s| {
         s.compact = compact;
         Some((
-            s.palette.clone()?,
+            s.chrome.clone()?,
             s.backdrop.clone()?,
             s.tabs.get(s.active).and_then(|t| t.view.clone()),
         ))
     }) else {
         return;
     };
-    let also = match page.filter(|_| !compact) {
+    match page.filter(|_| !compact) {
         Some(page) => {
             set_backdrop(&backdrop, Some(&page));
-            if view.is_visible() {
-                backdrop.set_visible(true);
-            }
-            vec![backdrop.upcast()]
+            motion::fade(&backdrop, 1.0, || {});
         }
-        None => {
-            crate::anim::conceal(&backdrop, || {});
-            vec![]
-        }
-    };
-    place_palette();
-    view.grab_focus();
-    crate::anim::reveal(&view, &format!("nova.cmdline({}, {compact})", js_str(text)), &also);
+        None => motion::fade(&backdrop, 0.0, || {}),
+    }
+    c.palette.open(text, compact);
 }
 
 /// Point the palette's backdrop at `page` (None: let go of it).
@@ -1426,41 +1340,48 @@ fn set_backdrop(b: &gtk::Box, page: Option<&WebView>) {
 pub fn close_cmdline() {
     modes::enter(Mode::Normal);
     crate::completion::reset();
-    if let Some((v, b)) = S.with_borrow(|s| Some((s.palette.clone()?, s.backdrop.clone()?))) {
-        crate::anim::conceal(&v, || {});
+    if let Some((c, b)) = S.with_borrow(|s| Some((s.chrome.clone()?, s.backdrop.clone()?))) {
+        c.palette.close();
         let b2 = b.clone();
         // let go of the page: a live paintable redraws with it
-        crate::anim::conceal(&b, move || set_backdrop(&b2, None));
+        motion::fade(&b, 0.0, move || {
+            if !b2.is_visible() {
+                set_backdrop(&b2, None)
+            }
+        });
     }
     focus_active();
     refresh();
 }
 
 pub fn set_cmdline_text(text: &str) {
-    palette_js(&format!("nova.setText({})", js_str(text)));
+    if let Some(c) = chrome() {
+        c.palette.set_text(text);
+    }
 }
 
 pub fn show_completion(json: Option<&str>) {
-    // closing (completion::reset): keep the list while the palette fades out, or the
-    // card snaps to one line first; nova.cmdline clears it on the next open (W15)
+    // closing (completion::reset): keep the list while the palette springs out, or the
+    // card snaps to one line first; the next open clears it
     if json.is_none() && modes::mode() != Mode::Command {
         return;
     }
-    palette_js(&format!("nova.complete({})", json.unwrap_or("null")));
-    if let Some(j) = json {
-        completion_icons(j);
+    let Some(c) = chrome() else { return };
+    let v = json.and_then(|j| serde_json::from_str::<Value>(j).ok());
+    c.palette.complete(v.as_ref());
+    if let Some(v) = v {
+        completion_icons(&v);
     }
 }
 
 thread_local! {
-    /// page URL -> site icon as a data: URL ("" = none known), for completion rows
-    static ICONS: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
+    /// page URL -> site icon (None = none known), for completion rows
+    static ICONS: RefCell<HashMap<String, Option<gtk::gdk::Texture>>> = RefCell::new(HashMap::new());
 }
 
 /// Site icons for the completion rows with a web address, from WebKit's icon store (no
-/// network): cached ones at once, the rest as each lookup answers. Same URL rule as palette.html.
-fn completion_icons(json: &str) {
-    let Ok(v) = serde_json::from_str::<Value>(json) else { return };
+/// network): cached ones at once, the rest as each lookup answers.
+fn completion_icons(v: &Value) {
     let urls: Vec<String> = v["items"]
         .as_array()
         .into_iter()
@@ -1470,11 +1391,13 @@ fn completion_icons(json: &str) {
             it.as_array()?.iter().filter_map(|x| x.as_str()).find(|x| x.starts_with("http://") || x.starts_with("https://")).map(str::to_string)
         })
         .collect();
-    let known: Map<String, Value> = ICONS.with_borrow(|c| {
-        urls.iter().filter_map(|u| Some((u.clone(), Value::from(c.get(u)?.clone())))).filter(|(_, d)| d != "").collect()
+    let known: Vec<(String, gtk::gdk::Texture)> = ICONS.with_borrow(|c| {
+        urls.iter().filter_map(|u| Some((u.clone(), c.get(u)?.clone()?))).collect()
     });
     if !known.is_empty() {
-        palette_js(&format!("nova.icons({})", Value::Object(known)));
+        if let Some(c) = chrome() {
+            c.palette.icons(&known);
+        }
     }
     let Some(db) = web::session().website_data_manager().and_then(|m| m.favicon_database()) else {
         return;
@@ -1485,7 +1408,7 @@ fn completion_icons(json: &str) {
         if ICONS.with_borrow(|c| c.contains_key(&u)) {
             continue;
         }
-        ICONS.with_borrow_mut(|c| c.insert(u.clone(), String::new()));
+        ICONS.with_borrow_mut(|c| c.insert(u.clone(), None));
         // the page itself, else the site's home page (most visited pages here were never
         // opened in this edition: imported history has no icons)
         let root = u.find("://").and_then(|i| u[i + 3..].find('/').map(|j| u[..i + 3 + j + 1].to_string()));
@@ -1510,44 +1433,35 @@ fn icon_lookup(db: webkit6::FaviconDatabase, mut tries: Vec<String>, row: String
         let Ok(t) = r else {
             return icon_lookup(db2, tries, row, rows, slot);
         };
-        let data = format!("data:image/png;base64,{}", glib::base64_encode(&t.save_to_png_bytes()));
         let site = site_of(&row).to_string();
-        let mut out = Map::new();
+        let mut out = Vec::new();
         ICONS.with_borrow_mut(|c| {
             for u in rows.iter().filter(|u| **u == row || site_of(u) == site) {
-                if c.get(u).is_none_or(|d| d.is_empty()) {
-                    c.insert(u.clone(), data.clone());
-                    out.insert(u.clone(), Value::from(data.clone()));
+                if c.get(u).is_none_or(|d| d.is_none()) {
+                    c.insert(u.clone(), Some(t.clone()));
+                    out.push((u.clone(), t.clone()));
                 }
             }
         });
-        in_slot(slot, || palette_js(&format!("nova.icons({})", Value::Object(out))));
+        in_slot(slot, || {
+            if let Some(c) = chrome() {
+                c.palette.icons(&out);
+            }
+        });
     });
 }
 
-/// Full content area, or a top strip one input tall when compact.
+/// `completion.height` to the palette.
 fn place_palette() {
-    let Some((p, compact)) = S.with_borrow(|s| Some((s.palette.clone()?, s.compact))) else {
-        return;
-    };
-    if compact {
-        // search: a pill at the bottom centre, where its find toast shows after Enter
-        let w = S.with_borrow(|s| s.content.as_ref().map_or(600, |c| c.width()));
-        p.set_halign(gtk::Align::Center);
-        p.set_valign(gtk::Align::End);
-        p.set_margin_bottom(12);
-        p.set_size_request((w - 40).clamp(240, 560), 64);
-    } else {
-        p.set_halign(gtk::Align::Fill);
-        p.set_valign(gtk::Align::Fill);
-        p.set_margin_bottom(0);
-        p.set_size_request(-1, -1);
-    }
+    let Some(c) = chrome() else { return };
+    c.palette.set_list_height(match config::get().get("completion.height") {
+        Value::String(p) if p.ends_with('%') => ListHeight::Percent(p.trim_end_matches('%').parse().unwrap_or(50.0)),
+        v => ListHeight::Px(v.as_i64().unwrap_or(300) as i32),
+    });
 }
 
-/// Overlay views with a size request (popups, prompt, key hints) get exactly that size,
-/// placed by their align + margins: a WebView's natural size is its page's content size,
-/// so the default placement grew the password list to the window's edge.
+/// Overlay children with a size request get exactly that size, placed by their align +
+/// margins (the backdrop and any fixed-size child); others use GTK's default placement.
 fn fixed_overlay_position(o: &gtk::Overlay, child: &gtk::Widget) -> Option<gtk::gdk::Rectangle> {
     let (w, h) = child.size_request();
     if w <= 0 || h <= 0 {
@@ -1568,19 +1482,17 @@ fn fixed_overlay_position(o: &gtk::Overlay, child: &gtk::Widget) -> Option<gtk::
     ))
 }
 
-/// Show a root-overlay popup at window coords (x, y), size (w, h), kept inside, and run `js`.
-fn popup_at(view: &WebView, x: i32, y: i32, w: i32, h: i32, js: &str) {
+/// Place a root-overlay popup (already filled) at window coords (x, y), kept inside.
+fn popup_at(w: &gtk::Widget, x: i32, y: i32) {
     let (ww, wh) = S.with_borrow(|s| {
         s.root
             .as_ref()
             .map_or((0, 0), |r| (r.width(), r.height()))
     });
-    let x = x.min(ww - w - 4).max(4);
-    let y = y.min(wh - h - 4).max(0);
-    view.set_margin_start(x);
-    view.set_margin_top(y);
-    view.set_size_request(w, h);
-    crate::anim::reveal(view, js, &[]);
+    let (_, nw, _, _) = w.measure(gtk::Orientation::Horizontal, -1);
+    let (_, nh, _, _) = w.measure(gtk::Orientation::Vertical, nw);
+    w.set_margin_start(x.min(ww - nw - 4).max(4));
+    w.set_margin_top(y.min(wh - nh - 4).max(0));
 }
 
 /// Tab bar's origin in root (window content) coordinates.
@@ -1594,21 +1506,12 @@ fn origin_of(w: Option<impl IsA<gtk::Widget>>) -> (i32, i32) {
     }
 }
 
-fn tab_rect(arg: &str) -> Option<(usize, i32, i32, i32)> {
-    let v: Vec<i64> = arg.split(' ').filter_map(|x| x.parse().ok()).collect();
-    match v[..] {
-        [i, l, b, r] if i >= 0 => Some((i as usize, l as i32, b as i32, r as i32)),
-        _ => None,
-    }
-}
-
-/// "tip i left bottom right" from the tab bar: show title + URL under (or beside) tab i.
-pub fn tab_tip(arg: &str) {
-    let Some(view) = S.with_borrow(|s| s.tip.clone()) else {
-        return;
-    };
-    let Some((i, left, bottom, right)) = tab_rect(arg) else {
-        return crate::anim::conceal(&view, || {});
+/// Hover on tab i (left, bottom, right in tab bar coordinates): title + URL under (or
+/// beside) it. None hides.
+fn tab_tip(r: Option<(usize, i32, i32, i32)>) {
+    let Some(c) = chrome() else { return };
+    let Some((i, left, bottom, right)) = r else {
+        return c.tip.hide();
     };
     let Some((title, url)) =
         S.with_borrow(|s| s.tabs.get(i).map(|t| (t.title.clone(), t.url.clone())))
@@ -1617,13 +1520,13 @@ pub fn tab_tip(arg: &str) {
     };
     let (ox, oy) = origin_of(S.with_borrow(|s| s.tabbar.clone()));
     let vertical = matches!(config::get().str("tabs.position").as_str(), "left" | "right");
-    let (w, h) = (480, 30 + 20 * (url.len() as i32 / 60 + 1).min(4));
     let (x, y) = if vertical {
         (ox + right + 6, oy + bottom - 24)
     } else {
         (ox + left, oy + bottom + 4)
     };
-    popup_at(&view, x, y, w, h, &format!("nova.tip({}, {})", js_str(&title), js_str(&url)));
+    c.tip.show(&title, &url);
+    popup_at(&c.tip.widget(), x, y);
 }
 
 const MENU: &[(&str, &str, &str)] = &[
@@ -1640,71 +1543,46 @@ const MENU: &[(&str, &str, &str)] = &[
     ("others", "Close other tabs", "co"),
 ];
 
-/// "menu i x bottom right": the tab's right-click menu at the mouse.
-pub fn tab_menu(arg: &str) {
-    let Some(view) = S.with_borrow(|s| s.menu.clone()) else {
-        return;
-    };
-    let Some((i, x, bottom, _)) = tab_rect(arg) else {
-        return;
-    };
-    if let Some(t) = S.with_borrow(|s| s.tip.clone()) {
-        crate::anim::conceal(&t, || {});
-    }
+/// Right-click on tab i at (x, bottom) in tab bar coordinates: its menu at the mouse.
+fn tab_menu(i: usize, x: i32, bottom: i32) {
+    let Some(c) = chrome() else { return };
+    c.tip.hide();
     let (ox, oy) = origin_of(S.with_borrow(|s| s.tabbar.clone()));
-    let items: Vec<_> = MENU.iter().map(|(a, l, k)| [a, l, k]).collect();
-    popup_at(
-        &view,
-        ox + x,
-        oy + bottom + 2,
-        230,
-        MENU.len() as i32 * 28 + 14,
-        &format!("nova.menu({i}, {})", json!(items)),
-    );
-    view.grab_focus();
+    c.menu.show(i, MENU);
+    popup_at(&c.menu.widget(), ox + x, oy + bottom + 2);
+}
+
+/// A key while the tab menu is open (modes.rs asks first); true = the menu took it.
+pub fn menu_key(name: &str) -> bool {
+    chrome().is_some_and(|c| c.menu.key(name))
 }
 
 /// Password suggestions under a login field; `field` = (x, y, w, h) in page CSS px.
 pub fn suggest(field: (i32, i32, i32, i32), data: &Value) {
-    let Some((view, stack)) = S.with_borrow(|s| Some((s.tip.clone()?, s.stack.clone()?))) else {
+    let Some((c, stack)) = S.with_borrow(|s| Some((s.chrome.clone()?, s.stack.clone()?))) else {
         return;
     };
     let (cx, cy) = origin_of(Some(stack));
-    let n = data["rows"].as_array().map_or(0, |a| a.len()) as i32;
-    popup_at(
-        &view,
-        cx + field.0,
-        cy + field.1 + field.3 + 4,
-        360,
-        // header row with the key badge (popup.html .h) + padding + rows
-        44 + n.min(8) * 28,
-        &format!("nova.suggest({data})"),
-    );
+    c.suggest.show(data);
+    popup_at(&c.suggest.widget(), cx + field.0, cy + field.1 + field.3 + 4);
 }
 
 pub fn suggest_hide() {
-    if let Some(v) = S.with_borrow(|s| s.tip.clone()) {
-        let v2 = v.clone();
-        crate::anim::conceal(&v, move || web::eval_page(&v2, "nova.suggest(null)"));
+    if let Some(c) = chrome() {
+        c.suggest.hide();
     }
 }
 
 pub fn close_popup() {
-    if let Some(v) = S.with_borrow(|s| s.menu.clone()) {
-        crate::anim::conceal(&v, || {});
+    if let Some(c) = chrome() {
+        c.menu.hide();
     }
     focus_active();
 }
 
-/// "i action" from the menu: run it on tab i (not necessarily the active one).
-pub fn tab_menu_action(arg: &str) {
+/// A tab menu pick: run `action` on tab i (not necessarily the active one).
+fn tab_menu_action(i: usize, action: &str) {
     close_popup();
-    let Some((i, action)) = arg
-        .split_once(' ')
-        .and_then(|(i, a)| Some((i.parse::<usize>().ok()?, a)))
-    else {
-        return;
-    };
     let cmd = match action {
         "close" => return close_user(i, false),
         "others" => return close_others_than(i),
@@ -1731,8 +1609,8 @@ fn update_keyhint() {
         (s.keyhint_gen, CUR.get())
     });
     if rows.is_empty() {
-        if let Some(v) = S.with_borrow(|s| s.keyhint.clone()) {
-            crate::anim::conceal(&v, || {});
+        if let Some(c) = chrome() {
+            c.keyhint.hide();
         }
     } else {
         glib::timeout_add_local_once(Duration::from_millis(350), move || {
@@ -1742,25 +1620,13 @@ fn update_keyhint() {
 }
 
 fn show_keyhint(generation: u64) {
-    let Some((view, stack)) = S.with_borrow(|s| {
-        (s.keyhint_gen == generation).then(|| Some((s.keyhint.clone()?, s.stack.clone()?)))?
-    }) else {
+    let Some(c) = S.with_borrow(|s| (s.keyhint_gen == generation).then(|| s.chrome.clone())?) else {
         return;
     };
     let (prefix, rows) = modes::keyhint();
-    if rows.is_empty() {
-        return;
+    if !rows.is_empty() {
+        c.keyhint.show(&prefix, &rows);
     }
-    let cfg = config::get();
-    let row_h = (theme::setting_px(&cfg, "fonts.keyhint") * 1.6).ceil() as i32;
-    let h = (rows.len() as i32 * row_h + 18).min(stack.height() - 24).max(30);
-    let w = 380.min(stack.width() - 24).max(100);
-    view.set_size_request(w, h);
-    crate::anim::reveal(
-        &view,
-        &format!("nova.keyhint({}, {})", js_str(&prefix), json!(rows)),
-        &[],
-    );
 }
 
 /// Focus whichever tab is active (or the tab bar while a prompt waits) once the
@@ -1769,11 +1635,11 @@ pub fn focus_active() {
     let slot = CUR.get();
     glib::idle_add_local_once(move || {
         in_slot(slot, || {
-            let v = S.with_borrow(|s| {
+            let v: Option<gtk::Widget> = S.with_borrow(|s| {
                 if modes::mode() == Mode::Prompt {
                     s.tabbar.clone()
                 } else {
-                    s.tabs.get(s.active).and_then(|t| t.view.clone())
+                    s.tabs.get(s.active).and_then(|t| t.view.clone()).map(|v| v.upcast())
                 }
             });
             if let Some(v) = v {
@@ -2066,28 +1932,12 @@ fn apply_tabs_show() {
     tabbar.set_visible(show);
 }
 
-/// Send the CSS variables and layout facts to every chrome view.
+/// Theme variables to the chrome's CSS, tab bar orientation.
 fn push_theme() {
     let cfg = config::get();
-    let vertical = matches!(cfg.str("tabs.position").as_str(), "left" | "right");
-    let json = json!({
-        "vars": theme::vars(&cfg),
-        "vertical": vertical,
-        "listHeight": match cfg.get("completion.height") {
-            Value::String(p) if p.ends_with('%') => format!("{}vh", p.trim_end_matches('%')),
-            v => format!("{}px", v.as_i64().unwrap_or(300)),
-        },
-    })
-    .to_string();
-    let views = S.with_borrow(|s| {
-        [&s.tabbar, &s.palette, &s.keyhint, &s.tip, &s.menu, &s.ask, &s.toast]
-            .into_iter()
-            .flatten()
-            .cloned()
-            .collect::<Vec<_>>()
-    });
-    for v in views {
-        web::eval_page(&v, &format!("window.nova && nova.theme && nova.theme({json})"));
+    chrome::style::apply(&theme::vars(&cfg));
+    if let Some(c) = chrome() {
+        c.tabbar.set_vertical(matches!(cfg.str("tabs.position").as_str(), "left" | "right"));
     }
 }
 
@@ -2115,33 +1965,28 @@ pub fn all_views() -> Vec<WebView> {
     })
 }
 
-/// `nova.send` from a chrome view of the current window.
-fn ui_message(text: &str) {
-    let (cmd, arg) = text.split_once(' ').unwrap_or((text, ""));
-    match (cmd, arg.parse::<i64>()) {
-        ("ready", _) => {
-            push_theme();
-            refresh();
-        }
-        ("tab", Ok(n)) if n >= 0 => show(n as usize),
-        ("close", Ok(n)) if n >= 0 => close_user(n as usize, false),
-        ("move", Ok(n)) if n >= 0 => move_active(n + 1, false),
-        ("run", _) => {
-            crate::completion::record(arg);
+/// A user action in the chrome of the current window.
+fn on_ev(ev: Ev) {
+    match ev {
+        Ev::Tab(n) => show(n),
+        Ev::Close(n) => close_user(n, false),
+        Ev::Move(n) => move_active(n as i64 + 1, false),
+        Ev::Menu(i, x, bottom) => tab_menu(i, x, bottom),
+        Ev::Tip(r) => tab_tip(r),
+        Ev::Downloads => crate::commands::run_from_bar("downloads"),
+        Ev::Text(t) => crate::completion::on_text(&t),
+        Ev::Run(line) => {
+            crate::completion::record(&line);
             close_cmdline();
-            crate::commands::run_from_bar(arg);
+            crate::commands::run_from_bar(&line);
         }
-        ("text", _) => crate::completion::on_text(arg),
-        ("complete", Ok(by)) => crate::completion::select(by),
-        ("hist", Ok(by)) => crate::completion::history_step(by),
-        ("cmdleave", _) => close_cmdline(),
-        ("tip", _) => tab_tip(arg),
-        ("menu", _) => tab_menu(arg),
-        ("menuact", _) => tab_menu_action(arg),
-        ("menuclose", _) => close_popup(),
-        ("pwpick", Ok(i)) if i >= 0 => crate::passwords::on_click(i as usize),
-        ("answer", _) => crate::permissions::on_key(arg),
-        _ => eprintln!("novabrowser-webkit: unknown UI message {text:?}"),
+        Ev::Complete(by) => crate::completion::select(by),
+        Ev::Hist(by) => crate::completion::history_step(by),
+        Ev::CmdLeave => close_cmdline(),
+        Ev::MenuAct(i, action) => tab_menu_action(i, action),
+        Ev::MenuClose => close_popup(),
+        Ev::PwPick(i) => crate::passwords::on_click(i),
+        Ev::Answer(key) => crate::permissions::on_key(&key),
     }
 }
 

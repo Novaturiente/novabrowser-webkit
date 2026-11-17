@@ -1,7 +1,5 @@
 //! WebKit setup. Web pages: one persistent NetworkSession (profile data dir) + WebContext;
-//! private windows: an ephemeral session. Browser chrome (tab bar, palette, popups):
-//! its own ephemeral session + WebContext serving `nova://ui/*`, and the only views
-//! with the `nova` message handler in the page's main world (D2, PLAN 1.4).
+//! private windows: an ephemeral session. The browser chrome is native GTK (`chrome/`).
 //! Internal pages (history, bookmarks, settings…) are `nova://page/<n>` in tabs; their
 //! actions come back as `nova://page/act?…` requests carrying this run's page token.
 use crate::config;
@@ -57,8 +55,6 @@ struct Ctx {
     pages: WebContext,
     session: NetworkSession,
     private: NetworkSession,
-    chrome: WebContext,
-    chrome_session: NetworkSession,
 }
 
 thread_local! {
@@ -70,13 +66,6 @@ thread_local! {
 fn ctx<R>(f: impl FnOnce(&Ctx) -> R) -> R {
     CTX.with(|c| f(c.get().expect("web::init not called")))
 }
-
-const TABBAR_HTML: &str = include_str!("../ui/tabbar.html");
-const PALETTE_HTML: &str = include_str!("../ui/palette.html");
-const KEYHINT_HTML: &str = include_str!("../ui/keyhint.html");
-const POPUP_HTML: &str = include_str!("../ui/popup.html");
-const PROMPT_HTML: &str = include_str!("../ui/prompt.html");
-const TOAST_HTML: &str = include_str!("../ui/toast.html");
 
 /// Profile data dir + cache dir: cookies, local storage, cache live there.
 pub fn init(data: &std::path::Path, cache: &std::path::Path) {
@@ -93,9 +82,8 @@ pub fn init(data: &std::path::Path, cache: &std::path::Path) {
     mem.set_memory_limit(3072); // MB per web process
     mem.set_kill_threshold(1.0); // fraction of the limit; WebKit's default 0 = never kill
     let pages = WebContext::builder().memory_pressure_settings(&mem).build();
-    let chrome = WebContext::new();
-    for c in [&pages, &chrome] {
-        let sm = c.security_manager().expect("security manager");
+    {
+        let sm = pages.security_manager().expect("security manager");
         // secure: no mixed-content warnings; local: web pages can't load or link it;
         // cors: our pages may fetch their own actions
         sm.register_uri_scheme_as_secure("nova");
@@ -117,7 +105,6 @@ pub fn init(data: &std::path::Path, cache: &std::path::Path) {
             &crate::adblock::ext_config(true).to_variant(),
         );
     });
-    chrome.register_uri_scheme("nova", serve_ui);
     let private = NetworkSession::new_ephemeral();
     // favicons are off by default in WebKitGTK 6: the `favicon` property stays empty without this
     for s in [&session, &private] {
@@ -129,8 +116,6 @@ pub fn init(data: &std::path::Path, cache: &std::path::Path) {
         pages,
         session,
         private,
-        chrome,
-        chrome_session: NetworkSession::new_ephemeral(),
     };
     CTX.with(|x| {
         let _ = x.set(c);
@@ -302,66 +287,11 @@ pub fn page_view(related: Option<&WebView>, private: bool) -> WebView {
     view
 }
 
-thread_local! {
-    /// A live chrome view; new ones are created related to it (same web process).
-    static CHROME_PROC: RefCell<glib::WeakRef<WebView>> = RefCell::new(glib::WeakRef::new());
-}
-
-/// A chrome view (`ui` = tabbar, palette, keyhint, popup): transparent, own context,
-/// `nova.send(text)` → `on_message(text)`.
-pub fn chrome_view(ui: &str, on_message: impl Fn(&str) + 'static) -> WebView {
-    let ucm = UserContentManager::new();
-    ucm.add_script(&UserScript::new(
-        "window.nova = { send: (s) => webkit.messageHandlers.nova.postMessage(String(s)) };",
-        UserContentInjectedFrames::TopFrame,
-        UserScriptInjectionTime::Start,
-        &["nova://ui/*"],
-        &[],
-    ));
-    ucm.register_script_message_handler("nova", None);
-    ucm.connect_script_message_received(Some("nova"), move |_, v| on_message(&v.to_str()));
-    let s = Settings::new();
-    s.set_enable_developer_extras(true);
-    let (session, context) = ctx(|c| (c.chrome_session.clone(), c.chrome.clone()));
-    // all chrome views share one web process (W14: 5 per window cost ~25-40 MB each)
-    let related = CHROME_PROC.with_borrow(|w| w.upgrade());
-    let b = WebView::builder().user_content_manager(&ucm).settings(&s);
-    let view = match &related {
-        Some(r) => b.related_view(r).build(),
-        None => b.web_context(&context).network_session(&session).build(),
-    };
-    if related.is_none() {
-        CHROME_PROC.with_borrow_mut(|w| w.set(Some(&view)));
-    }
-    view.set_background_color(&gdk::RGBA::new(0.0, 0.0, 0.0, 0.0));
-    // its web process died: load it again (it says `ready` and gets its state back)
-    view.connect_web_process_terminated(|v, _| v.reload());
-    view.load_uri(&format!("nova://ui/{ui}"));
-    view
-}
-
 fn respond(req: &URISchemeRequest, body: &str, mime: &str) {
     let bytes = glib::Bytes::from_owned(body.as_bytes().to_vec());
     let len = bytes.len() as i64;
     let stream = gio::MemoryInputStream::from_bytes(&bytes);
     req.finish(&stream, len, Some(mime));
-}
-
-fn not_found(req: &URISchemeRequest) {
-    req.finish_error(&mut glib::Error::new(gio::IOErrorEnum::NotFound, "not found"));
-}
-
-fn serve_ui(req: &URISchemeRequest) {
-    let html = match req.path().as_deref() {
-        Some("/tabbar") | Some("tabbar") => TABBAR_HTML,
-        Some("/palette") | Some("palette") => PALETTE_HTML,
-        Some("/keyhint") | Some("keyhint") => KEYHINT_HTML,
-        Some("/popup") | Some("popup") => POPUP_HTML,
-        Some("/prompt") | Some("prompt") => PROMPT_HTML,
-        Some("/toast") | Some("toast") => TOAST_HTML,
-        _ => return not_found(req),
-    };
-    respond(req, html, "text/html");
 }
 
 /// Our internal pages call `nova.send("page <token> <json>")`; here that is a fetch of

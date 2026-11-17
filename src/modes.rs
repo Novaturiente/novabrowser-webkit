@@ -171,6 +171,10 @@ enum Act {
 /// A key press in a window. Returns true to consume it (the page sees nothing).
 pub fn on_key(key: Key) -> bool {
     // password suggestions open under a login field: Down/Up/Enter/Escape are theirs
+    // the tab's right-click menu: j/k/arrows/Tab/Enter/Escape are its own
+    if key.mods == Mods::default() && window::menu_key(&key.name) {
+        return true;
+    }
     if key.mods == Mods::default() && crate::passwords::on_key(&key.name) {
         return true;
     }
